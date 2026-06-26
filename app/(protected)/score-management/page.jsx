@@ -1915,6 +1915,7 @@ const filteredReviews = useMemo(() => {
                     <th className="px-4 py-3 text-left">LOCATION</th>
                     <th className="px-4 py-3 text-center">PHOTOS</th>
                     <th className="px-4 py-3 text-center">SCORE</th>
+                    <th className="px-4 py-3 text-center">ORIGINAL SCORE</th>
                     <th className="px-4 py-3 text-center">STATUS</th>
                     <th className="px-4 py-3 text-center">MODIFIED</th>
                     <th className="px-4 py-3 text-left">DATE/TIME</th>
@@ -1956,6 +1957,11 @@ const filteredReviews = useMemo(() => {
                             canEdit={canEditScores}
                             isOngoing={review.status !== "completed"}
                           />
+                        </td>
+
+                        {/* ORIGINAL SCORE */}
+                        <td className="px-4 py-4 font-medium">
+                          {review.original_score?.toFixed(1) || "—"}
                         </td>
 
                         {/* STATUS */}
