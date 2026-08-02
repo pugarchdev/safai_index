@@ -676,8 +676,8 @@ export default function ClientDashboard() {
   // 2. Pass the single object to the hook (API WILL NOW FIRE)
   const { data: heatmapResponse, isLoading: isHeatmapLoading } = useGetWashroomHygieneHeatmap({
     company_id: companyId,
-    start_date: formattedStartDate,
-    end_date: formattedEndDate
+    start_date: dateRange.startDate,
+    end_date: dateRange.endDate
   });
   const heatmapData = heatmapResponse?.data || [];
   const heatmapDatesArray = getDatesInRange(dateRange.startDate, dateRange.endDate);
@@ -956,51 +956,55 @@ export default function ClientDashboard() {
             <div className="py-12"><Loader /></div>
           ) : (
             <div className="w-full overflow-x-auto pb-4 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 transition-colors">
-              <div className="w-max min-w-full border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden text-xs bg-white dark:bg-slate-900 shadow-sm relative">
+              <div className="max-h-[320px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-300 dark:hover:[&::-webkit-scrollbar-thumb]:bg-slate-600 transition-colors relative">
+                <div className="w-max min-w-full border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden text-xs bg-white dark:bg-slate-900 shadow-sm relative">
 
-                {/* Table Header */}
-                <div className="flex font-bold text-slate-600 dark:text-slate-300 mb-1 border-b border-slate-100 dark:border-slate-800 pb-2">
-                  {/* Reduced left column width on mobile from w-64 to w-28 */}
-                  <div className="w-28 md:w-64 flex-shrink-0 pl-3 md:pl-4 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-50 dark:border-slate-800">Washroom</div>
-                  {heatmapDatesArray.map((dateStr) => {
-                    const day = new Date(dateStr).getDate();
-                    return (
-                      <div key={dateStr} className="w-8 flex-shrink-0 text-center">{day}</div>
-                    );
-                  })}
-                  <div className="w-14 flex-shrink-0 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 border-l border-slate-100 dark:border-slate-800 shadow-[-4px_0_10px_rgba(0,0,0,0.02)]">Avg</div>
-                </div>
-
-                {/* Table Rows */}
-                {heatmapData.length > 0 ? heatmapData.map((row, i) => {
-                  const rowAvg = row.average_score ? Number(row.average_score).toFixed(1) : "-";
-
-                  return (
-                    <div key={row.washroom_id || i} className="flex h-10 items-stretch group">
-
-                      {/* Reduced left column width on mobile from w-64 to w-28, adjusted text size slightly to prevent too much cutting off */}
-                      <div className="w-28 md:w-64 flex-shrink-0 text-[10px] md:text-xs font-bold text-slate-700 dark:text-slate-200 pl-3 md:pl-4 pr-2 truncate flex items-center border-b border-white dark:border-slate-900 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-50 dark:border-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors" title={row.washroom_name}>
-                        {row.washroom_name}
-                      </div>
-
-                      {/* Solid Grid Cells */}
-                      {heatmapDatesArray.map((dateStr, j) => {
-                        const score = getScoreForDate(row, dateStr);
-                        return (
-                          <div key={j} className={`w-8 flex-shrink-0 flex items-center justify-center font-bold text-[10px] border-r border-b border-white dark:border-slate-900 transition-colors hover:brightness-95 cursor-pointer ${getHeatmapColor(score)}`}>
-                            {score !== null && score !== undefined && score !== "" ? Number(score).toFixed(1) : ''}
-                          </div>
-                        )
-                      })}
-
-                      <div className="w-14 flex-shrink-0 flex items-center justify-center font-black text-slate-800 dark:text-slate-100 border-b border-white dark:border-slate-900 sticky right-0 bg-white dark:bg-slate-900 z-10 border-l border-slate-100 dark:border-slate-800 shadow-[-4px_0_10px_rgba(0,0,0,0.02)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors">
-                        {rowAvg}
-                      </div>
+                  {/* Table Header */}
+                  <div className="flex font-bold text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-30 pt-2 pb-2">
+                    <div className="w-36 md:w-72 flex-shrink-0 pl-3 md:pl-4 sticky left-0 bg-white dark:bg-slate-900 z-40 border-r border-slate-50 dark:border-slate-800 flex items-center gap-2">
+                      <span className="w-6 text-slate-400">#</span>
+                      <span>Washroom</span>
                     </div>
-                  );
-                }) : (
-                  <div className="p-8 text-center text-slate-400 dark:text-slate-500 font-semibold">No data available for the selected range.</div>
-                )}
+                    {heatmapDatesArray.map((dateStr) => {
+                      const day = new Date(dateStr).getDate();
+                      return (
+                        <div key={dateStr} className="w-8 flex-shrink-0 text-center">{day}</div>
+                      );
+                    })}
+                    <div className="w-14 flex-shrink-0 text-center sticky right-0 bg-white dark:bg-slate-900 z-40 border-l border-slate-100 dark:border-slate-800 shadow-[-4px_0_10px_rgba(0,0,0,0.02)]">Avg</div>
+                  </div>
+
+                  {/* Table Rows */}
+                  {heatmapData.length > 0 ? heatmapData.map((row, i) => {
+                    const rowAvg = row.average_score ? Number(row.average_score).toFixed(1) : "-";
+
+                    return (
+                      <div key={row.washroom_id || i} className="flex h-10 items-stretch group">
+
+                        <div className="w-36 md:w-72 flex-shrink-0 text-[10px] md:text-xs font-bold text-slate-700 dark:text-slate-200 pl-3 md:pl-4 pr-2 flex items-center border-b border-slate-50 dark:border-slate-900 sticky left-0 bg-white dark:bg-slate-900 z-20 border-r border-slate-50 dark:border-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors" title={row.washroom_name}>
+                          <span className="w-6 shrink-0 text-slate-400 font-medium">{i + 1}</span>
+                          <span className="truncate">{row.washroom_name}</span>
+                        </div>
+
+                        {/* Solid Grid Cells */}
+                        {heatmapDatesArray.map((dateStr, j) => {
+                          const score = getScoreForDate(row, dateStr);
+                          return (
+                            <div key={j} className={`w-8 flex-shrink-0 flex items-center justify-center font-bold text-[10px] border-r border-b border-white dark:border-slate-900 transition-colors hover:brightness-95 cursor-pointer ${getHeatmapColor(score)}`}>
+                              {score !== null && score !== undefined && score !== "" ? Number(score).toFixed(1) : ''}
+                            </div>
+                          )
+                        })}
+
+                        <div className="w-14 flex-shrink-0 flex items-center justify-center font-black text-slate-800 dark:text-slate-100 border-b border-white dark:border-slate-900 sticky right-0 bg-white dark:bg-slate-900 z-20 border-l border-slate-100 dark:border-slate-800 shadow-[-4px_0_10px_rgba(0,0,0,0.02)] group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors">
+                          {rowAvg}
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <div className="p-8 text-center text-slate-400 dark:text-slate-500 font-semibold">No data available for the selected range.</div>
+                  )}
+                </div>
               </div>
             </div>
           )}

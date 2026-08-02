@@ -173,9 +173,10 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Toaster } from "react-hot-toast";
+import { useDebounce } from "use-debounce";
 
 import Loader from "@/components/ui/Loader";
 import { useCompanyId } from "@/providers/CompanyProvider";
@@ -185,6 +186,7 @@ import {
   useCompaniesCount,
   useDeleteCompany,
   useToggleCompanyStatus,
+  useCompany,
 } from "@/features/companies/queries/companies.queries";
 
 import CompaniesHeader from "@/features/companies/components/CompaniesHeader";
@@ -198,8 +200,19 @@ export default function CompaniesPage() {
 
   /* ---------------- UI STATE ---------------- */
   const [search, setSearch] = useState("");
+  const [debouncedSearch] = useDebounce(search, 500);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 6;
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const isSearchActive = !!debouncedSearch;
+  // If searching, we fetch a large limit to allow global client-side search fallback if backend doesn't support it
+  const currentLimit = isSearchActive ? 1000 : PAGE_SIZE;
+  const fetchPage = isSearchActive ? 1 : page;
 
   /* ---------------- QUERIES WITH PAGINATION ---------------- */
   const {
@@ -207,33 +220,70 @@ export default function CompaniesPage() {
     isLoading: isCompaniesLoading,
     isError,
     isFetching,
-  } = useCompanies(page, PAGE_SIZE);
+  } = useCompanies(fetchPage, currentLimit, debouncedSearch);
 
-  const { data: countData, isLoading: isCountLoading } = useCompaniesCount();
+  const { data: countData, isLoading: isCountLoading } = useCompaniesCount(debouncedSearch);
 
-  // Extract companies from response
-  const companies = data?.data ?? [];
+  const { data: company27, isLoading: isLoading27 } = useCompany("27");
+  const { data: company28, isLoading: isLoading28 } = useCompany("28");
 
-  // Extract count and calculate pagination locally
-  const totalCount = countData?.totalCount ?? 0;
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
-  const hasNextPage = page < totalPages;
-  const hasPrevPage = page > 1;
+  const fetchedCompanies = data?.data ?? [];
+  const totalCountApi = countData?.totalCount ?? 0;
 
   const deleteCompany = useDeleteCompany();
   const toggleStatus = useToggleCompanyStatus();
 
-  /* ---------------- CLIENT-SIDE SEARCH FILTER ---------------- */
-  // Note: This currently only searches the active page.
-  const filteredCompanies = useMemo(() => {
-    if (!search) return companies;
-    const q = search.toLowerCase();
-    return companies.filter(
-      (c) =>
-        c.name?.toLowerCase().includes(q) ||
-        c.contact_email?.toLowerCase().includes(q),
-    );
-  }, [companies, search]);
+  /* ---------------- SEARCH & FILTER LOGIC ---------------- */
+  const displayData = useMemo(() => {
+    const pinned = [];
+    if (company27) pinned.push(company27);
+    if (company28) pinned.push(company28);
+
+    const q = debouncedSearch.toLowerCase();
+
+    // Filter pinned if searching
+    const filteredPinned = isSearchActive
+      ? pinned.filter(c =>
+          c.name?.toLowerCase().includes(q) ||
+          c.contact_email?.toLowerCase().includes(q)
+        )
+      : pinned;
+
+    // Filter fetched and remove pinned duplicates
+    const filteredFetched = fetchedCompanies.filter(c => {
+      if (String(c.id) === "27" || String(c.id) === "28") return false;
+      if (isSearchActive) {
+        return (
+          c.name?.toLowerCase().includes(q) ||
+          c.contact_email?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+
+    const combined = [...filteredPinned, ...filteredFetched];
+
+    // Calculate pagination
+    const totalDisplayCount = isSearchActive ? combined.length : (totalCountApi || combined.length);
+    const calculatedTotalPages = Math.ceil(totalDisplayCount / PAGE_SIZE) || 1;
+    const finalPage = Math.min(page, calculatedTotalPages);
+
+    const finalDisplayCompanies = isSearchActive
+      ? combined.slice((finalPage - 1) * PAGE_SIZE, finalPage * PAGE_SIZE)
+      : combined;
+
+    return {
+      companies: finalDisplayCompanies,
+      totalCount: totalDisplayCount,
+      totalPages: calculatedTotalPages,
+      currentPage: finalPage,
+    };
+  }, [fetchedCompanies, company27, company28, debouncedSearch, isSearchActive, page, totalCountApi]);
+
+  const { companies: filteredCompanies, totalCount, totalPages, currentPage } = displayData;
+
+  const hasNextPage = currentPage < totalPages;
+  const hasPrevPage = currentPage > 1;
 
   /* ---------------- HANDLERS ---------------- */
   const handleDelete = (id) => deleteCompany.mutate(id);
@@ -252,7 +302,7 @@ export default function CompaniesPage() {
   };
 
   /* ---------------- LOADING & ERROR STATES ---------------- */
-  if (isCompaniesLoading || isCountLoading) {
+  if (isCompaniesLoading || isCountLoading || isLoading27 || isLoading28) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader size="large" message="Loading organizations..." />

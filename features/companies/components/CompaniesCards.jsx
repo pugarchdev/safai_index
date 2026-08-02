@@ -1,4 +1,4 @@
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Pin } from "lucide-react";
 import { formatDate } from "../utils/formatDate";
 import { useRouter } from "next/navigation";
 
@@ -23,8 +23,11 @@ export default function CompaniesCards({ companies, onDelete, onView }) {
           {/* ===== HEADER ===== */}
           <div className="flex justify-between items-start">
             <div>
-              <h3 className="font-semibold text-[var(--foreground)]">
+              <h3 className="font-semibold text-[var(--foreground)] flex items-center gap-2">
                 {c.name}
+                {(String(c.id) === "27" || String(c.id) === "28") && (
+                  <Pin size={14} className="text-amber-500" title="Pinned Company" />
+                )}
               </h3>
 
               <p className="text-sm text-[var(--sidebar-muted)]">

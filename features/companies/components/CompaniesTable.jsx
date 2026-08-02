@@ -96,7 +96,7 @@
 //   );
 // }
 
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Pin } from "lucide-react";
 import { formatDate } from "../utils/formatDate";
 import { useRouter } from "next/navigation";
 
@@ -140,7 +140,12 @@ export default function CompaniesTable({ companies, onDelete, onView }) {
               <td className="p-3">{i + 1}</td>
 
               <td className="p-3 font-medium text-[var(--foreground)]">
-                {c.name}
+                <div className="flex items-center gap-2">
+                  {c.name}
+                  {(String(c.id) === "27" || String(c.id) === "28") && (
+                    <Pin size={14} className="text-amber-500" title="Pinned Company" />
+                  )}
+                </div>
               </td>
 
               <td className="p-3 text-[var(--sidebar-muted)]">
