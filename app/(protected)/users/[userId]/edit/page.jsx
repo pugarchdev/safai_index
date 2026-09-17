@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, Suspense } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
 import { ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 
@@ -13,10 +13,13 @@ import { usePermissions } from "@/shared/hooks/usePermission";
 
 // TanStack Query Hooks
 import { useGetUserById, useUpdateUser } from "@/features/users/users.queries";
+// Dropdown locations hook
+import { useDropdownLocations } from "@/features/dropdownList/dropdownlist.query";
 
-export default function EditUserPage() {
+function EditUserContent() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const { userId } = params;
   const { companyId } = useCompanyId();
 
@@ -28,9 +31,22 @@ export default function EditUserPage() {
   // --- TANSTACK QUERIES & MUTATIONS ---
   const { 
     data: user, 
-    isLoading, 
+    isLoading: isLoadingUser, 
     isError 
   } = useGetUserById(userId);
+
+  const effectiveCompanyId =
+    companyId || searchParams.get("companyId") || user?.company_id;
+
+  // Fetch locations for the form dropdown
+  const { 
+    data: locationsResponse = [], 
+    isLoading: isLoadingLocations 
+  } = useDropdownLocations(effectiveCompanyId);
+
+  const availableLocations = Array.isArray(locationsResponse)
+    ? locationsResponse
+    : (locationsResponse?.data || []);
 
   const updateUserMutation = useUpdateUser();
 
@@ -38,15 +54,24 @@ export default function EditUserPage() {
   useEffect(() => {
     if (isError) {
       toast.error("Failed to fetch user data.");
-      router.push(`/users?companyId=${companyId}`);
+      router.push(
+        effectiveCompanyId
+          ? `/users?companyId=${effectiveCompanyId}`
+          : "/users"
+      );
     }
-  }, [isError, router, companyId]);
+  }, [isError, router, effectiveCompanyId]);
 
   // --- HANDLERS ---
   const handleUpdateUser = async (formData) => {
     // Prevent sending an empty password string on update
-    if (formData.password === "") {
+    if (formData.password === "" || !formData.password) {
       delete formData.password;
+    }
+
+    // Prevent sending an empty email string on update
+    if (!formData.email || (typeof formData.email === "string" && !formData.email.trim())) {
+      delete formData.email;
     }
 
     const toastId = toast.loading("Updating user...");
@@ -54,7 +79,11 @@ export default function EditUserPage() {
     try {
       await updateUserMutation.mutateAsync({ id: userId, data: formData });
       toast.success("User updated successfully!", { id: toastId });
-      router.push(`/users?companyId=${companyId}`);
+      router.push(
+        effectiveCompanyId
+          ? `/users?companyId=${effectiveCompanyId}`
+          : "/users"
+      );
     } catch (error) {
       toast.error(error.message || "Failed to update user.", { id: toastId });
     }
@@ -153,7 +182,7 @@ export default function EditUserPage() {
 
             {/* Form / Loader Content */}
             <div className="p-6 sm:p-8">
-              {isLoading ? (
+              {isLoadingUser ? (
                 <div className="flex justify-center items-center h-48">
                   <Loader2 
                     className="w-8 h-8 animate-spin" 
@@ -165,7 +194,9 @@ export default function EditUserPage() {
                   initialData={user}
                   onSubmit={handleUpdateUser}
                   isEditing={true}
-                  canSubmit={canEditUser && !updateUserMutation.isPending} 
+                  canSubmit={canEditUser && !updateUserMutation.isPending}
+                  locations={availableLocations}
+                  isLoadingLocations={isLoadingLocations}
                 />
               ) : (
                 <p 
@@ -180,5 +211,22 @@ export default function EditUserPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function EditUserPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 flex justify-center items-center min-h-screen">
+          <Loader2 
+            className="w-8 h-8 animate-spin" 
+            style={{ color: "var(--user-add-accent)" }} 
+          />
+        </div>
+      }
+    >
+      <EditUserContent />
+    </Suspense>
   );
 }
