@@ -14,6 +14,7 @@ const axiosInstance = axios.create({
   },
 });
 
+// testing the axios
 // Attach token from Redux
 axiosInstance.interceptors.request.use(
   (config) => {
@@ -29,7 +30,7 @@ axiosInstance.interceptors.request.use(
 );
 
 let isLoggingOut = false;
-
+console.log('test');
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
