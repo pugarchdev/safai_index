@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 
 const storeState = store.getState();
 
+
 const axiosInstance = axios.create({
   baseURL: "https://dash-backend-five.vercel.app/api",
   headers: {
@@ -14,9 +15,8 @@ const axiosInstance = axios.create({
   },
 });
 
-// testing the axios
-// Attach token from Redux
-// testing the new changes and commits
+
+
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token"); // ✅ READ FROM LS
