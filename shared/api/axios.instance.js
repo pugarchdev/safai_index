@@ -16,7 +16,10 @@ const axiosInstance = axios.create({
 });
 
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 9835e31f952376c736467ecae1fcdb5077302f87
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token"); // ✅ READ FROM LS
