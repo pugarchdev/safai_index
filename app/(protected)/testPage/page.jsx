@@ -1,7 +1,3 @@
-import React from "react";
-
-function page() {
-  return <div>page</div>;
+export default function Page() {
+  return <div>This page is made for testing only.</div>;
 }
-
-export default page;
