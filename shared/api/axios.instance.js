@@ -14,9 +14,7 @@ const axiosInstance = axios.create({
   },
 });
 
-// testing the axios
-// Attach token from Redux
-// testing the new changes and commits
+
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token"); // ✅ READ FROM LS
