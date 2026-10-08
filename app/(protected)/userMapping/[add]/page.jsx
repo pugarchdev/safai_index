@@ -1,0 +1,3085 @@
+// "use client";
+
+// import { useState, useEffect, useRef } from "react";
+// import { useSelector } from "react-redux";
+// import toast, { Toaster } from "react-hot-toast";
+// import { useRouter } from "next/navigation";
+// import { UsersApi } from "@/features/users/users.api";
+// import { LocationsApi } from "@/features/locations/locations.api";
+// import { AssignmentsApi } from "@/features/assignments/assignments.api";
+
+// import { useCompanyId } from "@/providers/CompanyProvider";
+// import { usePermissions } from "@/shared/hooks/usePermission";
+// import { useRequirePermission } from "@/shared/hooks/useRequirePermission";
+// import { MODULES } from "@/shared/constants/permissions";
+// import {
+//   User,
+//   MapPin,
+//   Search,
+//   ChevronDown,
+//   X,
+//   CheckSquare,
+//   Square,
+//   Users,
+//   AlertCircle,
+//   Loader,
+//   ArrowLeft,
+//   Check,
+//   Shield,
+//   LayoutGrid,
+//   ClipboardPlus,
+// } from "lucide-react";
+
+// const AddAssignmentPage = () => {
+//   useRequirePermission(MODULES.ASSIGNMENTS);
+
+//   const { canAdd } = usePermissions();
+//   const canAddAssignment = canAdd(MODULES.ASSIGNMENTS);
+
+//   // --- STATE MANAGEMENT ---
+//   const [assignmentMode, setAssignmentMode] = useState("multi");
+//   const [selectedUsers, setSelectedUsers] = useState([]);
+//   const [selectedLocations, setSelectedLocations] = useState([]);
+//   const [singleUser, setSingleUser] = useState("");
+
+//   const [allUsers, setAllUsers] = useState([]);
+//   const [allLocations, setAllLocations] = useState([]);
+//   const [availableLocations, setAvailableLocations] = useState([]);
+//   const [userAssignedLocations, setUserAssignedLocations] = useState([]);
+
+//   const [userSearchTerm, setUserSearchTerm] = useState("");
+//   const [locationSearchTerm, setLocationSearchTerm] = useState("");
+//   const [selectedRoleFilter, setSelectedRoleFilter] = useState("all"); // ✅ Role filter state
+
+//   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+//   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+//   const [isLoading, setIsLoading] = useState(false);
+//   const [isFetchingAssignments, setIsFetchingAssignments] = useState(false);
+//   const [isValidating, setIsValidating] = useState(false);
+
+//   const { user: loggedInUser } = useSelector((state) => state.auth);
+//   const { companyId } = useCompanyId();
+
+//   const userDropdownRef = useRef(null);
+//   const locationDropdownRef = useRef(null);
+//   const router = useRouter();
+
+//   // ✅ UPDATED: Filter out role_id 1 and 2, then get unique roles
+//   const assignableUsers = allUsers.filter(
+//     (u) => u.role_id !== 1 && u.role_id !== 2,
+//   );
+//   const uniqueRoles = [
+//     ...new Set(assignableUsers.map((u) => u.role?.name).filter(Boolean)),
+//   ];
+
+//   // ✅ UPDATED: Remove emojis, only show background colors
+//   const getRoleColor = (roleName) => {
+//     if (!roleName) return "bg-gray-100 text-gray-700";
+
+//     const role = roleName.toLowerCase();
+//     switch (role) {
+//       case "supervisor":
+//         return "bg-blue-100 text-blue-700";
+//       case "cleaner":
+//         return "bg-purple-100 text-purple-700";
+//       case "zonal admin":
+//       case "zonaladmin":
+//         return "bg-orange-100 text-orange-700";
+//       default:
+//         return "bg-gray-100 text-gray-700";
+//     }
+//   };
+
+//   // --- DATA FETCHING ---
+//   useEffect(() => {
+//     if (!companyId) return;
+
+//     const fetchData = async () => {
+//       setIsLoading(true);
+//       try {
+//         const userRes = await UsersApi.getAllUsers(companyId);
+//         const locationRes = await LocationsApi.getAllLocations(companyId);
+
+//         if (userRes.success) setAllUsers(userRes.data || []);
+//         if (locationRes.success) setAllLocations(locationRes.data || []);
+//       } catch (err) {
+//         console.error("❌ Error while fetching:", err);
+//         toast.error("Failed to load data");
+//       } finally {
+//         setIsLoading(false);
+//       }
+//     };
+
+//     fetchData();
+//   }, [companyId]);
+
+//   // --- FETCH ASSIGNED LOCATIONS FOR SINGLE USER MODE ---
+//   useEffect(() => {
+//     if (assignmentMode === "single" && singleUser) {
+//       fetchUserAssignments(singleUser);
+//     } else {
+//       setAvailableLocations(allLocations);
+//     }
+//   }, [singleUser, assignmentMode, allLocations]);
+
+//   const fetchUserAssignments = async (userId) => {
+//     setIsFetchingAssignments(true);
+//     try {
+//       const response = await AssignmentsApi.getAssignmentsByCleanerId(
+//         userId,
+//         companyId,
+//       );
+
+//       if (response.success) {
+//         const assignedLocationIds = response.data.map((a) => a.location_id);
+//         setUserAssignedLocations(assignedLocationIds);
+
+//         const unassignedLocations = allLocations.filter(
+//           (loc) => !assignedLocationIds.includes(loc.id),
+//         );
+//         setAvailableLocations(unassignedLocations);
+//       }
+//     } catch (error) {
+//       console.error("Error fetching user assignments:", error);
+//       toast.error("Failed to load user assignments");
+//       setAvailableLocations(allLocations);
+//     } finally {
+//       setIsFetchingAssignments(false);
+//     }
+//   };
+
+//   // --- VALIDATE ASSIGNMENTS BEFORE SUBMIT ---
+//   const validateAssignments = async () => {
+//     setIsValidating(true);
+//     const conflicts = [];
+
+//     try {
+//       const usersToCheck =
+//         assignmentMode === "multi"
+//           ? selectedUsers
+//           : [assignableUsers.find((u) => u.id === singleUser)];
+
+//       for (const user of usersToCheck) {
+//         const response = await AssignmentsApi.getAssignmentsByCleanerId(
+//           user.id,
+//           companyId,
+//         );
+
+//         if (response.success) {
+//           const assignedLocationIds = response.data.map((a) => a.location_id);
+//           const userConflicts = selectedLocations.filter((loc) =>
+//             assignedLocationIds.includes(loc.id),
+//           );
+
+//           if (userConflicts.length > 0) {
+//             conflicts.push({
+//               userName: user.name,
+//               locations: userConflicts.map((loc) => loc.name),
+//             });
+//           }
+//         }
+//       }
+//     } catch (error) {
+//       console.error("Error validating assignments:", error);
+//     } finally {
+//       setIsValidating(false);
+//     }
+
+//     return conflicts;
+//   };
+
+//   // --- CLOSE DROPDOWNS ON OUTSIDE CLICK ---
+//   useEffect(() => {
+//     const handleClickOutside = (event) => {
+//       if (
+//         userDropdownRef.current &&
+//         !userDropdownRef.current.contains(event.target)
+//       ) {
+//         setIsUserDropdownOpen(false);
+//       }
+//       if (
+//         locationDropdownRef.current &&
+//         !locationDropdownRef.current.contains(event.target)
+//       ) {
+//         setIsLocationDropdownOpen(false);
+//       }
+//     };
+//     document.addEventListener("mousedown", handleClickOutside);
+//     return () => document.removeEventListener("mousedown", handleClickOutside);
+//   }, []);
+
+//   // --- HANDLERS ---
+//   const handleModeToggle = () => {
+//     const newMode = assignmentMode === "multi" ? "single" : "multi";
+//     setAssignmentMode(newMode);
+
+//     setSelectedUsers([]);
+//     setSingleUser("");
+//     setSelectedLocations([]);
+//     setUserSearchTerm("");
+//     setLocationSearchTerm("");
+//     setSelectedRoleFilter("all");
+//   };
+
+//   const handleUserSelect = (user) => {
+//     if (assignmentMode === "multi") {
+//       setSelectedUsers((prev) =>
+//         prev.some((u) => u.id === user.id)
+//           ? prev.filter((u) => u.id !== user.id)
+//           : [...prev, user],
+//       );
+//     } else {
+//       setSingleUser(user.id);
+//       setUserSearchTerm(user.name);
+//       setIsUserDropdownOpen(false);
+//       setSelectedLocations([]);
+//     }
+//   };
+
+//   const handleLocationSelect = (location) => {
+//     setSelectedLocations((prev) =>
+//       prev.some((loc) => loc.id === location.id)
+//         ? prev.filter((loc) => loc.id !== location.id)
+//         : [...prev, location],
+//     );
+//   };
+
+//   const handleSelectAllLocations = () => {
+//     const locationsToUse =
+//       assignmentMode === "single" ? availableLocations : allLocations;
+
+//     if (selectedLocations.length === locationsToUse.length) {
+//       setSelectedLocations([]);
+//     } else {
+//       setSelectedLocations(locationsToUse);
+//     }
+//   };
+
+//   const handleSelectAllUsers = () => {
+//     const usersToSelect = filteredUsers;
+
+//     if (selectedUsers.length === usersToSelect.length) {
+//       setSelectedUsers([]);
+//     } else {
+//       setSelectedUsers(usersToSelect);
+//     }
+//   };
+
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+
+//     if (!canAddAssignment) {
+//       return toast.error("You don't have permission to add assignments");
+//     }
+
+//     // Validation
+//     if (assignmentMode === "multi") {
+//       if (selectedUsers.length === 0 || selectedLocations.length === 0) {
+//         return toast.error("Please select at least one user and one location.");
+//       }
+//     } else {
+//       if (!singleUser || selectedLocations.length === 0) {
+//         return toast.error("Please select a user and at least one location.");
+//       }
+//     }
+
+//     // Check for conflicts
+//     const conflicts = await validateAssignments();
+
+//     if (conflicts.length > 0) {
+//       const errorMessages = conflicts.map((conflict) => {
+//         const locationList = conflict.locations.join(", ");
+//         return `• ${conflict.userName} is already assigned to: ${locationList}`;
+//       });
+
+//       toast.error(
+//         (t) => (
+//           <div className="max-w-md">
+//             <div className="flex items-start gap-2 mb-2">
+//               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+//               <div>
+//                 <p className="font-semibold text-red-800 mb-1">
+//                   Assignment Conflicts Found
+//                 </p>
+//                 <div className="text-sm text-red-700 space-y-1">
+//                   {errorMessages.map((msg, idx) => (
+//                     <p key={idx}>{msg}</p>
+//                   ))}
+//                 </div>
+//               </div>
+//             </div>
+//             <button
+//               onClick={() => toast.dismiss(t.id)}
+//               className="mt-2 w-full px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+//             >
+//               Dismiss
+//             </button>
+//           </div>
+//         ),
+//         { duration: Infinity, style: { maxWidth: "500px" } },
+//       );
+
+//       return;
+//     }
+
+//     setIsLoading(true);
+
+//     try {
+//       let successCount = 0;
+//       let failureCount = 0;
+//       const errors = [];
+
+//       if (assignmentMode === "multi") {
+//         const promises = selectedUsers.map(async (user) => {
+//           try {
+//             const response = await AssignmentsApi.createAssignment({
+//               cleaner_user_id: user.id,
+//               location_ids: selectedLocations.map((loc) => loc.id),
+//               status: "assigned",
+//               company_id: companyId,
+//               role_id: user.role_id,
+//             });
+
+//             if (response.success) {
+//               successCount += response.data?.data?.created || 0;
+//               return { success: true, user: user.name };
+//             } else {
+//               failureCount++;
+//               errors.push(`${user.name}: ${response.error}`);
+//               return { success: false, user: user.name, error: response.error };
+//             }
+//           } catch (error) {
+//             failureCount++;
+//             errors.push(`${user.name}: ${error.message}`);
+//             return { success: false, user: user.name, error: error.message };
+//           }
+//         });
+
+//         await Promise.all(promises);
+//       } else {
+//         const selectedUserData = assignableUsers.find(
+//           (u) => u.id === singleUser,
+//         );
+//         const response = await AssignmentsApi.createAssignment({
+//           cleaner_user_id: singleUser,
+//           location_ids: selectedLocations.map((loc) => loc.id),
+//           status: "assigned",
+//           company_id: companyId,
+//           role_id: selectedUserData?.role_id,
+//         });
+
+//         if (response.success) {
+//           successCount = response.data?.data?.created || 0;
+//         } else {
+//           failureCount++;
+//           errors.push(response.error);
+//         }
+//       }
+
+//       // Show results
+//       if (successCount > 0 && failureCount === 0) {
+//         toast.success(
+//           `Successfully created ${successCount} assignment${
+//             successCount !== 1 ? "s" : ""
+//           }!`,
+//         );
+
+//         setSelectedUsers([]);
+//         setSingleUser("");
+//         setSelectedLocations([]);
+//         setUserSearchTerm("");
+//         setLocationSearchTerm("");
+
+//         setTimeout(() => {
+//           router.push(`/cleaner-assignments?companyId=${companyId}`);
+//         }, 1000);
+//       } else if (successCount > 0 && failureCount > 0) {
+//         toast(
+//           (t) => (
+//             <div className="max-w-md">
+//               <div className="flex items-start gap-2 mb-2">
+//                 <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+//                 <div>
+//                   <p className="font-semibold text-yellow-800 mb-1">
+//                     Partial Success
+//                   </p>
+//                   <p className="text-sm text-yellow-700 mb-2">
+//                     Created {successCount} assignment
+//                     {successCount !== 1 ? "s" : ""}, but {failureCount} failed:
+//                   </p>
+//                   <div className="text-sm text-yellow-700 space-y-1">
+//                     {errors.slice(0, 3).map((error, idx) => (
+//                       <p key={idx}>• {error}</p>
+//                     ))}
+//                     {errors.length > 3 && (
+//                       <p>• ...and {errors.length - 3} more</p>
+//                     )}
+//                   </div>
+//                 </div>
+//               </div>
+//               <button
+//                 onClick={() => toast.dismiss(t.id)}
+//                 className="mt-2 w-full px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition-colors"
+//               >
+//                 Dismiss
+//               </button>
+//             </div>
+//           ),
+//           { duration: Infinity, style: { maxWidth: "500px" } },
+//         );
+//       } else {
+//         toast.error(
+//           (t) => (
+//             <div className="max-w-md">
+//               <div className="flex items-start gap-2 mb-2">
+//                 <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+//                 <div>
+//                   <p className="font-semibold text-red-800 mb-1">
+//                     Assignment Failed
+//                   </p>
+//                   <div className="text-sm text-red-700 space-y-1">
+//                     {errors.slice(0, 3).map((error, idx) => (
+//                       <p key={idx}>• {error}</p>
+//                     ))}
+//                     {errors.length > 3 && (
+//                       <p>• ...and {errors.length - 3} more errors</p>
+//                     )}
+//                   </div>
+//                 </div>
+//               </div>
+//               <button
+//                 onClick={() => toast.dismiss(t.id)}
+//                 className="mt-2 w-full px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+//               >
+//                 Dismiss
+//               </button>
+//             </div>
+//           ),
+//           { duration: Infinity, style: { maxWidth: "500px" } },
+//         );
+//       }
+//     } catch (error) {
+//       console.error("Error creating assignments:", error);
+//       toast.error(
+//         (t) => (
+//           <div>
+//             <p className="font-semibold mb-1">Failed to create assignments</p>
+//             <p className="text-sm">{error.message}</p>
+//             <button
+//               onClick={() => toast.dismiss(t.id)}
+//               className="mt-2 w-full px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+//             >
+//               Dismiss
+//             </button>
+//           </div>
+//         ),
+//         { duration: Infinity },
+//       );
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   };
+
+//   // ✅ UPDATED: Filter logic - exclude role_id 1 & 2, then filter by search and role
+//   const filteredUsers = assignableUsers.filter((user) => {
+//     const matchesSearch = user.name
+//       .toLowerCase()
+//       .includes(userSearchTerm.toLowerCase());
+//     const matchesRole =
+//       selectedRoleFilter === "all" ||
+//       user.role?.name?.toLowerCase() === selectedRoleFilter.toLowerCase();
+//     return matchesSearch && matchesRole;
+//   });
+
+//   const filteredLocations = (
+//     assignmentMode === "single" ? availableLocations : allLocations
+//   ).filter((loc) =>
+//     loc.name.toLowerCase().includes(locationSearchTerm.toLowerCase()),
+//   );
+
+//   const locationsToShow =
+//     assignmentMode === "single" ? availableLocations : allLocations;
+//   const allLocationsSelected =
+//     selectedLocations.length === locationsToShow.length &&
+//     locationsToShow.length > 0;
+//   const allUsersSelected =
+//     selectedUsers.length === filteredUsers.length && filteredUsers.length > 0;
+
+//   // --- RENDER ---
+//   return (
+//     <>
+//       <Toaster position="top-right" />
+//       <div className="p-3 sm:p-4 md:p-6 lg:p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
+//         <div className="max-w-4xl mx-auto bg-white p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg border border-slate-200">
+//           {/* Header */}
+//           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 md:mb-8">
+//             <div className="flex items-center gap-3 md:gap-4">
+//               <ClipboardPlus className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-indigo-600 flex-shrink-0" />
+//               <div>
+//                 <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-800">
+//                   Create Assignments
+//                 </h1>
+//                 <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
+//                   Assign locations to users
+//                 </p>
+//               </div>
+//             </div>
+//           </div>
+
+//           {/* Mode Toggle */}
+//           <div className="mb-6 md:mb-8 p-4 sm:p-5 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl border-2 border-slate-200 shadow-sm">
+//             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+//               <div className="flex-1">
+//                 <div className="flex items-center gap-3 mb-2">
+//                   {assignmentMode === "multi" ? (
+//                     <Users className="w-5 h-5 text-indigo-600" />
+//                   ) : (
+//                     <User className="w-5 h-5 text-green-600" />
+//                   )}
+//                   <h3 className="text-base sm:text-lg font-bold text-slate-800">
+//                     {assignmentMode === "multi"
+//                       ? "Multiple Assignment Mode"
+//                       : "Single Assignment Mode"}
+//                   </h3>
+//                 </div>
+//                 <p className="text-xs sm:text-sm text-slate-600 ml-8">
+//                   {assignmentMode === "multi"
+//                     ? "Assign multiple users to multiple locations at once"
+//                     : "Assign one user to only their unassigned locations"}
+//                 </p>
+//               </div>
+//               <button
+//                 type="button"
+//                 onClick={handleModeToggle}
+//                 className={`relative inline-flex h-10 w-20 sm:h-11 sm:w-24 items-center rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 flex-shrink-0 shadow-md ${
+//                   assignmentMode === "multi"
+//                     ? "bg-indigo-600 focus:ring-indigo-500"
+//                     : "bg-green-600 focus:ring-green-500"
+//                 }`}
+//               >
+//                 <span
+//                   className={`inline-block h-8 w-8 sm:h-9 sm:w-9 transform rounded-full bg-white transition-transform shadow-lg ${
+//                     assignmentMode === "multi"
+//                       ? "translate-x-1"
+//                       : "translate-x-11 sm:translate-x-14"
+//                   }`}
+//                 >
+//                   {assignmentMode === "multi" ? (
+//                     <Users className="w-5 h-5 sm:w-6 sm:h-6 m-1.5 text-indigo-600" />
+//                   ) : (
+//                     <User className="w-5 h-5 sm:w-6 sm:h-6 m-1.5 text-green-600" />
+//                   )}
+//                 </span>
+//               </button>
+//             </div>
+//           </div>
+
+//           {/* Permission Warning */}
+//           {!canAddAssignment && (
+//             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+//               <div className="flex items-start gap-3">
+//                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+//                 <div>
+//                   <h4 className="text-sm font-semibold text-red-800 mb-1">
+//                     No Permission
+//                   </h4>
+//                   <p className="text-sm text-red-700">
+//                     You don't have permission to create assignments. Please
+//                     contact your administrator.
+//                   </p>
+//                 </div>
+//               </div>
+//             </div>
+//           )}
+
+//           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+//             {/* ✅ NEW: Role Filter at Top (Outside Dropdown) */}
+//             <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 sm:p-4">
+//               <label className="block text-xs sm:text-sm font-semibold text-indigo-900 mb-2">
+//                 Filter by Role
+//               </label>
+//               <div className="flex flex-wrap gap-2">
+//                 <button
+//                   type="button"
+//                   onClick={() => setSelectedRoleFilter("all")}
+//                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+//                     selectedRoleFilter === "all"
+//                       ? "bg-indigo-600 text-white shadow-md"
+//                       : "bg-white text-slate-700 hover:bg-indigo-100 border border-indigo-300"
+//                   }`}
+//                 >
+//                   All Roles ({assignableUsers.length})
+//                 </button>
+//                 {uniqueRoles.map((role) => {
+//                   const roleCount = assignableUsers.filter(
+//                     (u) => u.role?.name === role,
+//                   ).length;
+//                   return (
+//                     <button
+//                       key={role}
+//                       type="button"
+//                       onClick={() => setSelectedRoleFilter(role)}
+//                       className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+//                         selectedRoleFilter === role
+//                           ? "bg-indigo-600 text-white shadow-md"
+//                           : "bg-white text-slate-700 hover:bg-indigo-100 border border-indigo-300"
+//                       }`}
+//                     >
+//                       <span
+//                         className={`inline-block px-2 py-0.5 rounded-full mr-1.5 ${getRoleColor(role)}`}
+//                       >
+//                         {role}
+//                       </span>
+//                       ({roleCount})
+//                     </button>
+//                   );
+//                 })}
+//               </div>
+//               {selectedRoleFilter !== "all" && (
+//                 <div className="mt-2 flex items-center gap-2">
+//                   <span className="text-xs text-indigo-700">
+//                     Showing {filteredUsers.length} user
+//                     {filteredUsers.length !== 1 ? "s" : ""} with role:{" "}
+//                     {selectedRoleFilter}
+//                   </span>
+//                   <button
+//                     type="button"
+//                     onClick={() => setSelectedRoleFilter("all")}
+//                     className="text-xs text-indigo-600 hover:text-indigo-800 underline"
+//                   >
+//                     Clear filter
+//                   </button>
+//                 </div>
+//               )}
+//             </div>
+
+//             {/* User Selection - Multi or Single based on mode */}
+//             {assignmentMode === "multi" ? (
+//               // Multi-select Users
+//               <div ref={userDropdownRef}>
+//                 <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">
+//                   Select Users ({selectedUsers.length} selected)
+//                 </label>
+//                 <div className="relative">
+//                   <button
+//                     type="button"
+//                     onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+//                     className="w-full flex justify-between items-center text-left px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-slate-800 bg-slate-50 border border-slate-300 rounded-lg hover:border-indigo-400 transition-colors"
+//                   >
+//                     <span className="truncate">
+//                       {selectedUsers.length > 0
+//                         ? `${selectedUsers.length} user${
+//                             selectedUsers.length !== 1 ? "s" : ""
+//                           } selected`
+//                         : "Click to select users..."}
+//                     </span>
+//                     <ChevronDown
+//                       className={`w-4 h-4 sm:w-5 sm:h-5 text-slate-400 transition-transform flex-shrink-0 ${
+//                         isUserDropdownOpen ? "rotate-180" : ""
+//                       }`}
+//                     />
+//                   </button>
+
+//                   {isUserDropdownOpen && (
+//                     <div className="absolute z-20 w-full mt-2 bg-white border border-slate-300 rounded-lg shadow-lg max-h-96 flex flex-col">
+//                       {/* Search */}
+//                       <div className="p-2 sm:p-3 border-b border-slate-200">
+//                         <div className="relative">
+//                           <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
+//                           <input
+//                             type="text"
+//                             placeholder="Search users..."
+//                             value={userSearchTerm}
+//                             onChange={(e) => setUserSearchTerm(e.target.value)}
+//                             className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 text-xs sm:text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+//                           />
+//                         </div>
+//                       </div>
+
+//                       {/* Select All Button */}
+//                       <div className="p-2 border-b border-slate-200">
+//                         <button
+//                           type="button"
+//                           onClick={handleSelectAllUsers}
+//                           className="w-full flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+//                         >
+//                           {allUsersSelected ? (
+//                             <>
+//                               <CheckSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+//                               <span>Deselect All</span>
+//                             </>
+//                           ) : (
+//                             <>
+//                               <Square className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+//                               <span>Select All ({filteredUsers.length})</span>
+//                             </>
+//                           )}
+//                         </button>
+//                       </div>
+
+//                       {/* User List */}
+//                       <div className="overflow-y-auto p-2">
+//                         {filteredUsers.length > 0 ? (
+//                           filteredUsers.map((user) => (
+//                             <label
+//                               key={user.id}
+//                               className="flex items-center p-1.5 sm:p-2 rounded-md hover:bg-slate-100 cursor-pointer group"
+//                             >
+//                               <input
+//                                 type="checkbox"
+//                                 checked={selectedUsers.some(
+//                                   (u) => u.id === user.id,
+//                                 )}
+//                                 onChange={() => handleUserSelect(user)}
+//                                 className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
+//                               />
+//                               {/* ✅ UPDATED: Show user name with role badge (no emoji) */}
+//                               <div className="ml-2 sm:ml-3 flex items-center gap-2 flex-1">
+//                                 <span className="text-xs sm:text-sm text-slate-700 group-hover:text-slate-900">
+//                                   {user.name}
+//                                 </span>
+//                                 <span
+//                                   className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-medium ${getRoleColor(
+//                                     user.role?.name,
+//                                   )}`}
+//                                 >
+//                                   {user.role?.name || "No Role"}
+//                                 </span>
+//                               </div>
+//                             </label>
+//                           ))
+//                         ) : (
+//                           <p className="text-xs sm:text-sm text-slate-500 text-center py-4">
+//                             {selectedRoleFilter !== "all"
+//                               ? `No users found with role "${selectedRoleFilter}"`
+//                               : "No users found"}
+//                           </p>
+//                         )}
+//                       </div>
+//                     </div>
+//                   )}
+//                 </div>
+
+//                 {/* Selected Users Display */}
+//                 {selectedUsers.length > 0 && (
+//                   <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
+//                     {selectedUsers.map((user) => (
+//                       <span
+//                         key={user.id}
+//                         className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium"
+//                       >
+//                         <span className="truncate max-w-[150px]">
+//                           {user.name}
+//                         </span>
+//                         <span
+//                           className={`text-[10px] px-1.5 py-0.5 rounded-full ${getRoleColor(user.role?.name)}`}
+//                         >
+//                           {user.role?.name}
+//                         </span>
+//                         <button
+//                           type="button"
+//                           onClick={() => handleUserSelect(user)}
+//                           className="hover:text-indigo-900 flex-shrink-0"
+//                         >
+//                           <X className="w-3 h-3" />
+//                         </button>
+//                       </span>
+//                     ))}
+//                   </div>
+//                 )}
+//               </div>
+//             ) : (
+//               // Single User Select
+//               <div ref={userDropdownRef}>
+//                 <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">
+//                   Select User
+//                 </label>
+//                 <div className="relative">
+//                   <button
+//                     type="button"
+//                     onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+//                     className="w-full flex justify-between items-center text-left px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-slate-800 bg-slate-50 border border-slate-300 rounded-lg hover:border-green-400 transition-colors"
+//                   >
+//                     <span className="truncate">
+//                       {singleUser
+//                         ? (() => {
+//                             const user = assignableUsers.find(
+//                               (u) => u.id === singleUser,
+//                             );
+//                             return user ? (
+//                               <span className="flex items-center gap-2">
+//                                 {user.name}
+//                                 <span
+//                                   className={`text-[10px] px-2 py-0.5 rounded-full ${getRoleColor(user.role?.name)}`}
+//                                 >
+//                                   {user.role?.name}
+//                                 </span>
+//                               </span>
+//                             ) : (
+//                               "Select a user..."
+//                             );
+//                           })()
+//                         : "Select a user..."}
+//                     </span>
+//                     <ChevronDown
+//                       className={`w-4 h-4 sm:w-5 sm:h-5 text-slate-400 transition-transform flex-shrink-0 ${
+//                         isUserDropdownOpen ? "rotate-180" : ""
+//                       }`}
+//                     />
+//                   </button>
+
+//                   {isUserDropdownOpen && (
+//                     <div className="absolute z-20 w-full mt-2 bg-white border border-slate-300 rounded-lg shadow-lg max-h-96 flex flex-col">
+//                       <div className="p-2 sm:p-3 border-b border-slate-200">
+//                         <div className="relative">
+//                           <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
+//                           <input
+//                             type="text"
+//                             placeholder="Search users..."
+//                             value={userSearchTerm}
+//                             onChange={(e) => setUserSearchTerm(e.target.value)}
+//                             className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 text-xs sm:text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+//                           />
+//                         </div>
+//                       </div>
+
+//                       <div className="overflow-y-auto p-2">
+//                         {filteredUsers.length > 0 ? (
+//                           filteredUsers.map((user) => (
+//                             <div
+//                               key={user.id}
+//                               onClick={() => handleUserSelect(user)}
+//                               className={`p-1.5 sm:p-2 rounded-md hover:bg-slate-100 cursor-pointer transition-colors ${
+//                                 singleUser === user.id
+//                                   ? "bg-green-50 text-green-700 font-medium"
+//                                   : "text-slate-700"
+//                               }`}
+//                             >
+//                               {/* ✅ UPDATED: Show user with role (no emoji) */}
+//                               <div className="flex items-center justify-between gap-2">
+//                                 <span className="text-xs sm:text-sm">
+//                                   {user.name}
+//                                 </span>
+//                                 <span
+//                                   className={`text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${getRoleColor(
+//                                     user.role?.name,
+//                                   )}`}
+//                                 >
+//                                   {user.role?.name || "No Role"}
+//                                 </span>
+//                               </div>
+//                             </div>
+//                           ))
+//                         ) : (
+//                           <p className="text-xs sm:text-sm text-slate-500 text-center py-4">
+//                             {selectedRoleFilter !== "all"
+//                               ? `No users found with role "${selectedRoleFilter}"`
+//                               : "No users found"}
+//                           </p>
+//                         )}
+//                       </div>
+//                     </div>
+//                   )}
+//                 </div>
+//               </div>
+//             )}
+
+//             {/* Location Selection */}
+//             <div ref={locationDropdownRef}>
+//               <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">
+//                 Select Locations ({selectedLocations.length} selected)
+//                 {assignmentMode === "single" && singleUser && (
+//                   <span className="ml-2 text-xs text-slate-500">
+//                     ({availableLocations.length} unassigned)
+//                   </span>
+//                 )}
+//               </label>
+
+//               {assignmentMode === "single" && !singleUser && (
+//                 <p className="text-xs sm:text-sm text-amber-600 mb-2">
+//                   Please select a user first to see available locations
+//                 </p>
+//               )}
+
+//               {isFetchingAssignments && (
+//                 <div className="flex items-center gap-2 text-xs sm:text-sm text-indigo-600 mb-2">
+//                   <Loader className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+//                   <span>Loading available locations...</span>
+//                 </div>
+//               )}
+
+//               <div className="relative">
+//                 <button
+//                   type="button"
+//                   onClick={() =>
+//                     setIsLocationDropdownOpen(!isLocationDropdownOpen)
+//                   }
+//                   disabled={assignmentMode === "single" && !singleUser}
+//                   className="w-full flex justify-between items-center text-left px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-slate-800 bg-slate-50 border border-slate-300 rounded-lg hover:border-indigo-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+//                 >
+//                   <span className="truncate">
+//                     {selectedLocations.length > 0
+//                       ? `${selectedLocations.length} location${
+//                           selectedLocations.length !== 1 ? "s" : ""
+//                         } selected`
+//                       : "Click to select locations..."}
+//                   </span>
+//                   <ChevronDown
+//                     className={`w-4 h-4 sm:w-5 sm:h-5 text-slate-400 transition-transform flex-shrink-0 ${
+//                       isLocationDropdownOpen ? "rotate-180" : ""
+//                     }`}
+//                   />
+//                 </button>
+
+//                 {isLocationDropdownOpen && (
+//                   <div className="absolute z-10 w-full mt-2 bg-white border border-slate-300 rounded-lg shadow-lg max-h-64 sm:max-h-80 flex flex-col">
+//                     {/* Search */}
+//                     <div className="p-2 sm:p-3 border-b border-slate-200">
+//                       <div className="relative">
+//                         <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
+//                         <input
+//                           type="text"
+//                           placeholder="Search locations..."
+//                           value={locationSearchTerm}
+//                           onChange={(e) =>
+//                             setLocationSearchTerm(e.target.value)
+//                           }
+//                           className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-1.5 sm:py-2 text-xs sm:text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+//                         />
+//                       </div>
+//                     </div>
+
+//                     {/* Select All Button */}
+//                     <div className="p-2 border-b border-slate-200">
+//                       <button
+//                         type="button"
+//                         onClick={handleSelectAllLocations}
+//                         className="w-full flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+//                       >
+//                         {allLocationsSelected ? (
+//                           <>
+//                             <CheckSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+//                             <span>Deselect All</span>
+//                           </>
+//                         ) : (
+//                           <>
+//                             <Square className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+//                             <span>Select All ({locationsToShow.length})</span>
+//                           </>
+//                         )}
+//                       </button>
+//                     </div>
+
+//                     {/* Location List */}
+//                     <div className="overflow-y-auto p-2">
+//                       {filteredLocations.length > 0 ? (
+//                         filteredLocations.map((location) => (
+//                           <label
+//                             key={location.id}
+//                             className="flex items-center p-1.5 sm:p-2 rounded-md hover:bg-slate-100 cursor-pointer group"
+//                           >
+//                             <input
+//                               type="checkbox"
+//                               checked={selectedLocations.some(
+//                                 (loc) => loc.id === location.id,
+//                               )}
+//                               onChange={() => handleLocationSelect(location)}
+//                               className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
+//                             />
+//                             <span className="ml-2 sm:ml-3 text-xs sm:text-sm text-slate-700 group-hover:text-slate-900">
+//                               {location.name}
+//                             </span>
+//                           </label>
+//                         ))
+//                       ) : (
+//                         <p className="text-xs sm:text-sm text-slate-500 text-center py-4">
+//                           {assignmentMode === "single" && singleUser
+//                             ? "All locations are already assigned to this user"
+//                             : "No locations found"}
+//                         </p>
+//                       )}
+//                     </div>
+//                   </div>
+//                 )}
+//               </div>
+
+//               {/* Selected Locations Display */}
+//               {selectedLocations.length > 0 && (
+//                 <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
+//                   {selectedLocations.map((location) => (
+//                     <span
+//                       key={location.id}
+//                       className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium"
+//                     >
+//                       <span className="truncate max-w-[150px]">
+//                         {location.name}
+//                       </span>
+//                       <button
+//                         type="button"
+//                         onClick={() => handleLocationSelect(location)}
+//                         className="hover:text-indigo-900 flex-shrink-0"
+//                       >
+//                         <X className="w-3 h-3" />
+//                       </button>
+//                     </span>
+//                   ))}
+//                 </div>
+//               )}
+//             </div>
+
+//             {/* Submit Button */}
+//             <div className="pt-4 sm:pt-6 border-t border-slate-200">
+//               <button
+//                 type="submit"
+//                 disabled={isLoading || isValidating || !canAddAssignment}
+//                 className={`w-full px-4 py-2.5 sm:py-3 font-semibold text-white text-sm sm:text-base rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2 ${
+//                   assignmentMode === "multi"
+//                     ? "bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
+//                     : "bg-green-600 hover:bg-green-700 focus:ring-green-500"
+//                 }`}
+//                 title={
+//                   !canAddAssignment
+//                     ? "You don't have permission to add assignments"
+//                     : ""
+//                 }
+//               >
+//                 {isValidating ? (
+//                   <>
+//                     <Loader className="w-4 h-4 animate-spin" />
+//                     <span>Validating...</span>
+//                   </>
+//                 ) : isLoading ? (
+//                   <>
+//                     <Loader className="w-4 h-4 animate-spin" />
+//                     <span>Creating Assignments...</span>
+//                   </>
+//                 ) : assignmentMode === "multi" ? (
+//                   `Create ${
+//                     selectedUsers.length * selectedLocations.length
+//                   } Assignment${
+//                     selectedUsers.length * selectedLocations.length !== 1
+//                       ? "s"
+//                       : ""
+//                   }`
+//                 ) : (
+//                   `Assign ${selectedLocations.length} Location${
+//                     selectedLocations.length !== 1 ? "s" : ""
+//                   }`
+//                 )}
+//               </button>
+//             </div>
+//           </form>
+//         </div>
+//       </div>
+//     </>
+//   );
+// };
+
+// export default AddAssignmentPage;
+
+// "use client";
+
+// import { useState, useEffect, useRef } from "react";
+// import { useSelector } from "react-redux";
+// import toast, { Toaster } from "react-hot-toast";
+// import { useRouter } from "next/navigation";
+// import { UsersApi } from "@/features/users/users.api";
+// import { LocationsApi } from "@/features/locations/locations.api";
+// import { AssignmentsApi } from "@/features/assignments/assignments.api";
+// import { useCompanyId } from "@/providers/CompanyProvider";
+// import { usePermissions } from "@/shared/hooks/usePermission";
+// import { useRequirePermission } from "@/shared/hooks/useRequirePermission";
+// import { MODULES } from "@/shared/constants/permissions";
+// import {
+//   User,
+//   MapPin,
+//   Search,
+//   ChevronDown,
+//   X,
+//   CheckSquare,
+//   Square,
+//   Users,
+//   AlertCircle,
+//   Loader,
+//   ArrowLeft,
+//   Check,
+//   Shield,
+//   ShieldCheck,
+//   ClipboardPlus,
+// } from "lucide-react";
+// import Link from "next/link";
+
+// const AddAssignmentPage = () => {
+//   useRequirePermission(MODULES.ASSIGNMENTS);
+
+//   const { canAdd } = usePermissions();
+//   const canAddAssignment = canAdd(MODULES.ASSIGNMENTS);
+
+//   // --- STATE MANAGEMENT ---
+//   const [assignmentMode, setAssignmentMode] = useState("multi");
+//   const [selectedUsers, setSelectedUsers] = useState([]);
+//   const [selectedLocations, setSelectedLocations] = useState([]);
+//   const [singleUser, setSingleUser] = useState("");
+
+//   const [allUsers, setAllUsers] = useState([]);
+//   const [allLocations, setAllLocations] = useState([]);
+//   const [availableLocations, setAvailableLocations] = useState([]);
+//   const [userAssignedLocations, setUserAssignedLocations] = useState([]);
+
+//   const [userSearchTerm, setUserSearchTerm] = useState("");
+//   const [locationSearchTerm, setLocationSearchTerm] = useState("");
+//   const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
+
+//   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+//   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+//   const [isLoading, setIsLoading] = useState(false);
+//   const [isFetchingAssignments, setIsFetchingAssignments] = useState(false);
+//   const [isValidating, setIsValidating] = useState(false);
+
+//   const { user: loggedInUser } = useSelector((state) => state.auth);
+//   const { companyId } = useCompanyId();
+
+//   const userDropdownRef = useRef(null);
+//   const locationDropdownRef = useRef(null);
+//   const router = useRouter();
+
+//   const assignableUsers = allUsers.filter(
+//     (u) => u.role_id !== 1 && u.role_id !== 2,
+//   );
+//   const uniqueRoles = [
+//     ...new Set(assignableUsers.map((u) => u.role?.name).filter(Boolean)),
+//   ];
+
+//   const getRoleColor = (roleName) => {
+//     if (!roleName) return "bg-gray-100 text-gray-700";
+
+//     const role = roleName.toLowerCase();
+//     switch (role) {
+//       case "supervisor":
+//         return "bg-blue-100 text-blue-700";
+//       case "cleaner":
+//         return "bg-purple-100 text-purple-700";
+//       case "zonal admin":
+//       case "zonaladmin":
+//         return "bg-orange-100 text-orange-700";
+//       case "facility supervisor":
+//         return "bg-teal-100 text-teal-700";
+//       case "facility admin":
+//         return "bg-pink-100 text-pink-700";
+//       default:
+//         return "bg-gray-100 text-gray-700";
+//     }
+//   };
+
+//   // --- DATA FETCHING ---
+//   useEffect(() => {
+//     if (!companyId) return;
+
+//     const fetchData = async () => {
+//       setIsLoading(true);
+//       try {
+//         const userRes = await UsersApi.getAllUsers(companyId);
+//         const locationRes = await LocationsApi.getAllLocations(companyId);
+
+//         if (userRes.success) setAllUsers(userRes.data || []);
+//         if (locationRes.success) setAllLocations(locationRes.data || []);
+//       } catch (err) {
+//         console.error("❌ Error while fetching:", err);
+//         toast.error("Failed to load data");
+//       } finally {
+//         setIsLoading(false);
+//       }
+//     };
+
+//     fetchData();
+//   }, [companyId]);
+
+//   // --- FETCH ASSIGNED LOCATIONS FOR SINGLE USER MODE ---
+//   useEffect(() => {
+//     if (assignmentMode === "single" && singleUser) {
+//       fetchUserAssignments(singleUser);
+//     } else {
+//       setAvailableLocations(allLocations);
+//     }
+//   }, [singleUser, assignmentMode, allLocations]);
+
+//   const fetchUserAssignments = async (userId) => {
+//     setIsFetchingAssignments(true);
+//     try {
+//       const response = await AssignmentsApi.getAssignmentsByCleanerId(
+//         userId,
+//         companyId,
+//       );
+
+//       if (response.success) {
+//         const assignedLocationIds = response.data.map((a) => a.location_id);
+//         setUserAssignedLocations(assignedLocationIds);
+
+//         const unassignedLocations = allLocations.filter(
+//           (loc) => !assignedLocationIds.includes(loc.id),
+//         );
+//         setAvailableLocations(unassignedLocations);
+//       }
+//     } catch (error) {
+//       console.error("Error fetching user assignments:", error);
+//       toast.error("Failed to load user assignments");
+//       setAvailableLocations(allLocations);
+//     } finally {
+//       setIsFetchingAssignments(false);
+//     }
+//   };
+
+//   // --- VALIDATE ASSIGNMENTS BEFORE SUBMIT ---
+//   const validateAssignments = async () => {
+//     setIsValidating(true);
+//     const conflicts = [];
+
+//     try {
+//       const usersToCheck =
+//         assignmentMode === "multi"
+//           ? selectedUsers
+//           : [assignableUsers.find((u) => u.id === singleUser)];
+
+//       for (const user of usersToCheck) {
+//         const response = await AssignmentsApi.getAssignmentsByCleanerId(
+//           user.id,
+//           companyId,
+//         );
+
+//         if (response.success) {
+//           const assignedLocationIds = response.data.map((a) => a.location_id);
+//           const userConflicts = selectedLocations.filter((loc) =>
+//             assignedLocationIds.includes(loc.id),
+//           );
+
+//           if (userConflicts.length > 0) {
+//             conflicts.push({
+//               userName: user.name,
+//               locations: userConflicts.map((loc) => loc.name),
+//             });
+//           }
+//         }
+//       }
+//     } catch (error) {
+//       console.error("Error validating assignments:", error);
+//     } finally {
+//       setIsValidating(false);
+//     }
+
+//     return conflicts;
+//   };
+
+//   // --- CLOSE DROPDOWNS ON OUTSIDE CLICK ---
+//   useEffect(() => {
+//     const handleClickOutside = (event) => {
+//       if (
+//         userDropdownRef.current &&
+//         !userDropdownRef.current.contains(event.target)
+//       ) {
+//         setIsUserDropdownOpen(false);
+//       }
+//       if (
+//         locationDropdownRef.current &&
+//         !locationDropdownRef.current.contains(event.target)
+//       ) {
+//         setIsLocationDropdownOpen(false);
+//       }
+//     };
+//     document.addEventListener("mousedown", handleClickOutside);
+//     return () => document.removeEventListener("mousedown", handleClickOutside);
+//   }, []);
+
+//   // --- RESET ON MODE CHANGE ---
+//   useEffect(() => {
+//     if (!assignmentMode) return;
+//     setSelectedUsers([]);
+//     setSingleUser("");
+//     setSelectedLocations([]);
+//     setUserSearchTerm("");
+//     setLocationSearchTerm("");
+//     setSelectedRoleFilter("all");
+//     setIsUserDropdownOpen(false);
+//     setIsLocationDropdownOpen(false);
+//   }, [assignmentMode]);
+
+//   // --- HANDLERS ---
+//   const handleModeToggle = () => {
+//     const newMode = assignmentMode === "multi" ? "single" : "multi";
+//     setAssignmentMode(newMode);
+//   };
+
+//   const handleUserSelect = (user) => {
+//     if (assignmentMode === "multi") {
+//       setSelectedUsers((prev) =>
+//         prev.some((u) => u.id === user.id)
+//           ? prev.filter((u) => u.id !== user.id)
+//           : [...prev, user],
+//       );
+//     } else {
+//       setSingleUser(user.id);
+//       setUserSearchTerm(user.name);
+//       setIsUserDropdownOpen(false);
+//       setSelectedLocations([]);
+//     }
+//   };
+
+//   const handleLocationSelect = (location) => {
+//     setSelectedLocations((prev) =>
+//       prev.some((loc) => loc.id === location.id)
+//         ? prev.filter((loc) => loc.id !== location.id)
+//         : [...prev, location],
+//     );
+//   };
+
+//   const handleSelectAllLocations = () => {
+//     const locationsToUse =
+//       assignmentMode === "single" ? availableLocations : allLocations;
+
+//     if (selectedLocations.length === locationsToUse.length) {
+//       setSelectedLocations([]);
+//     } else {
+//       setSelectedLocations(locationsToUse);
+//     }
+//   };
+
+//   const handleSelectAllUsers = () => {
+//     const usersToSelect = filteredUsers;
+
+//     if (selectedUsers.length === usersToSelect.length) {
+//       setSelectedUsers([]);
+//     } else {
+//       setSelectedUsers(usersToSelect);
+//     }
+//   };
+
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+
+//     if (!canAddAssignment) {
+//       return toast.error("You don't have permission to add assignments");
+//     }
+
+//     // Validation
+//     if (assignmentMode === "multi") {
+//       if (selectedUsers.length === 0 || selectedLocations.length === 0) {
+//         return toast.error("Please select at least one user and one location.");
+//       }
+//     } else {
+//       if (!singleUser || selectedLocations.length === 0) {
+//         return toast.error("Please select a user and at least one location.");
+//       }
+//     }
+
+//     // Check for conflicts
+//     const conflicts = await validateAssignments();
+
+//     if (conflicts.length > 0) {
+//       const errorMessages = conflicts.map((conflict) => {
+//         const locationList = conflict.locations.join(", ");
+//         return `• ${conflict.userName} is already assigned to: ${locationList}`;
+//       });
+
+//       toast.error(
+//         (t) => (
+//           <div className="max-w-md">
+//             <div className="flex items-start gap-2 mb-2">
+//               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+//               <div>
+//                 <p className="font-semibold text-red-800 mb-1">
+//                   Assignment Conflicts Found
+//                 </p>
+//                 <div className="text-sm text-red-700 space-y-1">
+//                   {errorMessages.map((msg, idx) => (
+//                     <p key={idx}>{msg}</p>
+//                   ))}
+//                 </div>
+//               </div>
+//             </div>
+//             <button
+//               onClick={() => toast.dismiss(t.id)}
+//               className="mt-2 w-full px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+//             >
+//               Dismiss
+//             </button>
+//           </div>
+//         ),
+//         { duration: Infinity, style: { maxWidth: "500px" } },
+//       );
+
+//       return;
+//     }
+
+//     setIsLoading(true);
+
+//     try {
+//       let successCount = 0;
+//       let failureCount = 0;
+//       const errors = [];
+
+//       if (assignmentMode === "multi") {
+//         const promises = selectedUsers.map(async (user) => {
+//           try {
+//             const response = await AssignmentsApi.createAssignment({
+//               cleaner_user_id: user.id,
+//               location_ids: selectedLocations.map((loc) => loc.id),
+//               status: "assigned",
+//               company_id: companyId,
+//               role_id: user.role_id,
+//             });
+
+//             if (response.success) {
+//               successCount += response.data?.data?.created || 0;
+//               return { success: true, user: user.name };
+//             } else {
+//               failureCount++;
+//               errors.push(`${user.name}: ${response.error}`);
+//               return { success: false, user: user.name, error: response.error };
+//             }
+//           } catch (error) {
+//             failureCount++;
+//             errors.push(`${user.name}: ${error.message}`);
+//             return { success: false, user: user.name, error: error.message };
+//           }
+//         });
+
+//         await Promise.all(promises);
+//       } else {
+//         const selectedUserData = assignableUsers.find(
+//           (u) => u.id === singleUser,
+//         );
+//         const response = await AssignmentsApi.createAssignment({
+//           cleaner_user_id: singleUser,
+//           location_ids: selectedLocations.map((loc) => loc.id),
+//           status: "assigned",
+//           company_id: companyId,
+//           role_id: selectedUserData?.role_id,
+//         });
+
+//         if (response.success) {
+//           successCount = response.data?.data?.created || 0;
+//         } else {
+//           failureCount++;
+//           errors.push(response.error);
+//         }
+//       }
+
+//       // Show results
+//       if (successCount > 0 && failureCount === 0) {
+//         toast.success(
+//           `Successfully created ${successCount} assignment${
+//             successCount !== 1 ? "s" : ""
+//           }!`,
+//         );
+
+//         setSelectedUsers([]);
+//         setSingleUser("");
+//         setSelectedLocations([]);
+//         setUserSearchTerm("");
+//         setLocationSearchTerm("");
+
+//         setTimeout(() => {
+//           router.push(`/cleaner-assignments?companyId=${companyId}`);
+//         }, 1000);
+//       } else if (successCount > 0 && failureCount > 0) {
+//         toast(
+//           (t) => (
+//             <div className="max-w-md">
+//               <div className="flex items-start gap-2 mb-2">
+//                 <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+//                 <div>
+//                   <p className="font-semibold text-yellow-800 mb-1">
+//                     Partial Success
+//                   </p>
+//                   <p className="text-sm text-yellow-700 mb-2">
+//                     Created {successCount} assignment
+//                     {successCount !== 1 ? "s" : ""}, but {failureCount} failed:
+//                   </p>
+//                   <div className="text-sm text-yellow-700 space-y-1">
+//                     {errors.slice(0, 3).map((error, idx) => (
+//                       <p key={idx}>• {error}</p>
+//                     ))}
+//                     {errors.length > 3 && (
+//                       <p>• ...and {errors.length - 3} more</p>
+//                     )}
+//                   </div>
+//                 </div>
+//               </div>
+//               <button
+//                 onClick={() => toast.dismiss(t.id)}
+//                 className="mt-2 w-full px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition-colors"
+//               >
+//                 Dismiss
+//               </button>
+//             </div>
+//           ),
+//           { duration: Infinity, style: { maxWidth: "500px" } },
+//         );
+//       } else {
+//         toast.error(
+//           (t) => (
+//             <div className="max-w-md">
+//               <div className="flex items-start gap-2 mb-2">
+//                 <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+//                 <div>
+//                   <p className="font-semibold text-red-800 mb-1">
+//                     Assignment Failed
+//                   </p>
+//                   <div className="text-sm text-red-700 space-y-1">
+//                     {errors.slice(0, 3).map((error, idx) => (
+//                       <p key={idx}>• {error}</p>
+//                     ))}
+//                     {errors.length > 3 && (
+//                       <p>• ...and {errors.length - 3} more errors</p>
+//                     )}
+//                   </div>
+//                 </div>
+//               </div>
+//               <button
+//                 onClick={() => toast.dismiss(t.id)}
+//                 className="mt-2 w-full px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+//               >
+//                 Dismiss
+//               </button>
+//             </div>
+//           ),
+//           { duration: Infinity, style: { maxWidth: "500px" } },
+//         );
+//       }
+//     } catch (error) {
+//       console.error("Error creating assignments:", error);
+//       toast.error(
+//         (t) => (
+//           <div>
+//             <p className="font-semibold mb-1">Failed to create assignments</p>
+//             <p className="text-sm">{error.message}</p>
+//             <button
+//               onClick={() => toast.dismiss(t.id)}
+//               className="mt-2 w-full px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+//             >
+//               Dismiss
+//             </button>
+//           </div>
+//         ),
+//         { duration: Infinity },
+//       );
+//     } finally {
+//       setIsLoading(false);
+//     }
+//   };
+
+//   const filteredUsers = assignableUsers.filter((user) => {
+//     const matchesSearch = user.name
+//       .toLowerCase()
+//       .includes(userSearchTerm.toLowerCase());
+//     const matchesRole =
+//       selectedRoleFilter === "all" ||
+//       user.role?.name?.toLowerCase() === selectedRoleFilter.toLowerCase();
+//     return matchesSearch && matchesRole;
+//   });
+
+//   const filteredLocations = (
+//     assignmentMode === "single" ? availableLocations : allLocations
+//   ).filter((loc) =>
+//     loc.name.toLowerCase().includes(locationSearchTerm.toLowerCase()),
+//   );
+
+//   const locationsToShow =
+//     assignmentMode === "single" ? availableLocations : allLocations;
+//   const allLocationsSelected =
+//     selectedLocations.length === locationsToShow.length &&
+//     locationsToShow.length > 0;
+//   const allUsersSelected =
+//     selectedUsers.length === filteredUsers.length && filteredUsers.length > 0;
+
+//   // --- RENDER ---
+//   return (
+//     <>
+//       <Toaster position="top-center" />
+//       <div className="min-h-screen bg-white dark:bg-background w-full py-4 sm:py-6 px-4 sm:px-6 md:px-8 flex flex-col items-center relative overflow-hidden">
+//         {/* Background Decorative Blur */}
+//         <div className="absolute top-0 right-0 w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 bg-[#CBF3F0] rounded-full blur-3xl opacity-50 -mr-12 sm:-mr-16 -mt-12 sm:-mt-16 pointer-events-none" />
+
+//         {/* Back Button */}
+//         <div className="absolute top-4 sm:top-6 md:top-8 left-4 sm:left-6 md:left-8 z-20">
+//           <Link href={`/userMapping?companyId=${companyId}`}>
+//             <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300 transition-colors">
+//               <ArrowLeft size={20} strokeWidth={2.5} />
+//             </button>
+//           </Link>
+//         </div>
+
+//         {/* Main Card */}
+//         <div className="max-w-2xl w-full bg-white dark:bg-card rounded-2xl shadow-lg shadow-slate-200/40 border border-slate-100 dark:border-border overflow-hidden relative z-10 mt-12 sm:mt-0">
+//           {/* Card Header */}
+//           <div className="bg-[#CBF3F0] dark:bg-[#2a4a4a] px-4 sm:px-6 py-3 sm:py-4 border-b border-[#CBF3F1] dark:border-border flex justify-between items-center">
+//             <div className="flex items-center gap-2 sm:gap-3">
+//               <ClipboardPlus
+//                 size={18}
+//                 className="text-[#FF9F1C] flex-shrink-0"
+//               />
+//               <h1 className="text-base sm:text-lg md:text-xl font-extrabold tracking-tight text-[#0f0f0f] dark:text-slate-100">
+//                 Create Assignments
+//               </h1>
+//             </div>
+//             <div className="h-2 w-2 rounded-full bg-[#28C76F] animate-pulse" />
+//           </div>
+
+//           <form
+//             onSubmit={handleSubmit}
+//             className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8"
+//           >
+//             {/* Mode Toggle Box */}
+//             <div className="bg-white dark:bg-card border border-slate-50 dark:border-border rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all duration-300">
+//               <div className="flex items-center gap-3 sm:gap-4 flex-1">
+//                 <div
+//                   className={`h-10 w-10 sm:h-11 sm:w-11 rounded-lg bg-white dark:bg-[hsl(224,48%,14%)] flex items-center justify-center shadow-sm transition-all duration-300 flex-shrink-0 ${
+//                     assignmentMode === "multi"
+//                       ? "bg-[#FDF9F2] dark:bg-[hsl(224,48%,16%)]"
+//                       : "bg-blue-50 dark:bg-blue-900/20"
+//                   }`}
+//                 >
+//                   <ShieldCheck
+//                     className={`transition-colors duration-300 ${
+//                       assignmentMode === "multi"
+//                         ? "text-[#FF9F1C]"
+//                         : "text-blue-600 dark:text-blue-400"
+//                     }`}
+//                     size={20}
+//                   />
+//                 </div>
+//                 <div className="text-left">
+//                   <h3
+//                     className={`text-xs sm:text-sm font-black uppercase tracking-tight transition-colors duration-300 ${
+//                       assignmentMode === "multi"
+//                         ? "text-slate-800 dark:text-slate-100"
+//                         : "text-blue-700 dark:text-blue-300"
+//                     }`}
+//                   >
+//                     {assignmentMode === "multi"
+//                       ? "Multiple Mode"
+//                       : "Single Mode"}
+//                   </h3>
+//                   <p
+//                     className={`text-[10px] sm:text-xs font-bold transition-colors duration-300 ${
+//                       assignmentMode === "multi"
+//                         ? "text-slate-500 dark:text-slate-400"
+//                         : "text-blue-600 dark:text-blue-400"
+//                     }`}
+//                   >
+//                     {assignmentMode === "multi"
+//                       ? "Bulk mapping active"
+//                       : "One-to-one mapping active"}
+//                   </p>
+//                 </div>
+//               </div>
+
+//               {/* Enhanced Toggle Switch */}
+//               <button
+//                 type="button"
+//                 onClick={handleModeToggle}
+//                 className={`relative inline-flex h-8 w-14 sm:h-9 sm:w-16 items-center rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95 hover:scale-105 flex-shrink-0 ${
+//                   assignmentMode === "multi"
+//                     ? "bg-[#CBF3F0] dark:bg-[hsl(var(--primary))]/30 focus:ring-[#CBF3F0] shadow-md shadow-[#CBF3F0]/20"
+//                     : "bg-blue-500 dark:bg-blue-600 focus:ring-blue-500 shadow-md shadow-blue-500/20"
+//                 }`}
+//               >
+//                 <span
+//                   className={`inline-flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 transform rounded-full bg-white dark:bg-slate-100 transition-all duration-300 ease-out shadow-lg ${
+//                     assignmentMode === "multi"
+//                       ? "translate-x-7 sm:translate-x-8"
+//                       : "translate-x-1"
+//                   }`}
+//                 >
+//                   <Users
+//                     size={14}
+//                     className={`absolute transition-all duration-300 ${
+//                       assignmentMode === "multi"
+//                         ? "text-[#FF9F1C] opacity-100 scale-100 rotate-0"
+//                         : "opacity-0 scale-0 -rotate-90"
+//                     }`}
+//                   />
+//                   <User
+//                     size={14}
+//                     className={`absolute transition-all duration-300 ${
+//                       assignmentMode !== "multi"
+//                         ? "text-blue-600 dark:text-blue-400 opacity-100 scale-100 rotate-0"
+//                         : "opacity-0 scale-0 rotate-90"
+//                     }`}
+//                   />
+//                 </span>
+//               </button>
+//             </div>
+
+//             {/* Filter by Role - ENHANCED WITH BETTER SHADOW AND VISIBILITY */}
+//             <div className="text-left space-y-3 bg-gradient-to-br from-[#FDF9F2] to-[#FFF4E6] dark:from-[hsl(224,48%,12%)] dark:to-[hsl(224,48%,14%)] p-4 sm:p-5 rounded-xl border-2 border-[#CBF3F0] dark:border-[hsl(var(--primary))]/30 shadow-md shadow-[#CBF3F0]/30 dark:shadow-[hsl(var(--primary))]/20">
+//               <p className="text-xs font-black text-[#FF9F1C] dark:text-[hsl(var(--primary))] uppercase tracking-widest ml-1">
+//                 Filter by Role
+//               </p>
+//               <div className="flex flex-wrap gap-2">
+//                 <button
+//                   type="button"
+//                   onClick={() => setSelectedRoleFilter("all")}
+//                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border shadow-sm ${
+//                     selectedRoleFilter === "all"
+//                       ? "bg-[#CBF3F0] dark:bg-[hsl(var(--primary))] border-[#CBF3F0] dark:border-[hsl(var(--primary))] text-[#FF9F1C] dark:text-white shadow-md shadow-[#CBF3F0]/40"
+//                       : "bg-white dark:bg-card border-slate-200 dark:border-border text-slate-500 dark:text-slate-400 hover:border-[#CBF3F0] dark:hover:border-[hsl(var(--primary))] hover:shadow-md"
+//                   }`}
+//                 >
+//                   All Roles
+//                 </button>
+//                 {uniqueRoles.map((role) => (
+//                   <button
+//                     key={role}
+//                     type="button"
+//                     onClick={() => setSelectedRoleFilter(role)}
+//                     className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border shadow-sm ${
+//                       selectedRoleFilter === role
+//                         ? "bg-[#CBF3F0] dark:bg-[hsl(var(--primary))] border-[#CBF3F0] dark:border-[hsl(var(--primary))] text-[#FF9F1C] dark:text-white shadow-md shadow-[#CBF3F0]/40"
+//                         : "bg-white dark:bg-card border-slate-200 dark:border-border text-slate-500 dark:text-slate-400 hover:border-[#CBF3F0] dark:hover:border-[hsl(var(--primary))] hover:shadow-md"
+//                     }`}
+//                   >
+//                     {role}
+//                   </button>
+//                 ))}
+//               </div>
+//             </div>
+
+//             {/* Permission Warning */}
+//             {!canAddAssignment && (
+//               <div className="p-3 sm:p-4 bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-200 dark:border-orange-800 rounded-xl shadow-sm">
+//                 <div className="flex items-start gap-2 sm:gap-3">
+//                   <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+//                   <div>
+//                     <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">
+//                       You don't have permission to create assignments. Please
+//                       contact your administrator.
+//                     </p>
+//                   </div>
+//                 </div>
+//               </div>
+//             )}
+
+//             {/* User Selection */}
+//             <div className="text-left space-y-2" ref={userDropdownRef}>
+//               <label className="text-xs font-black text-[#0f0f0f] dark:text-slate-100 uppercase tracking-widest ml-1">
+//                 {assignmentMode === "multi"
+//                   ? `Select Users (${selectedUsers.length} selected)`
+//                   : "Select User"}
+//               </label>
+//               <div className="relative">
+//                 <div
+//                   onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+//                   className="relative cursor-pointer group"
+//                 >
+//                   <input
+//                     type="text"
+//                     readOnly
+//                     value={
+//                       assignmentMode === "multi"
+//                         ? selectedUsers.length > 0
+//                           ? `${selectedUsers.length} user${
+//                               selectedUsers.length > 1 ? "s" : ""
+//                             } selected`
+//                           : "Click to select users..."
+//                         : singleUser
+//                           ? assignableUsers.find((u) => u.id === singleUser)
+//                               ?.name || "Select a user..."
+//                           : "Select a user..."
+//                     }
+//                     placeholder={
+//                       assignmentMode === "multi"
+//                         ? "Click to select users..."
+//                         : "Select a user..."
+//                     }
+//                     className="w-full px-4 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base rounded-xl border border-slate-200 dark:border-border bg-white dark:bg-card font-medium text-[#0f0f0f] dark:text-slate-100 outline-none focus:border-[#93C5FD] dark:focus:border-[hsl(var(--primary))] focus:ring-2 focus:ring-[#93C5FD]/20 dark:focus:ring-[hsl(var(--primary))]/20 transition-all cursor-pointer"
+//                   />
+//                   <ChevronDown
+//                     className={`absolute right-4 sm:right-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-hover:text-[#FF9F1C] dark:group-hover:text-[hsl(var(--primary))] transition-all duration-300 ${
+//                       isUserDropdownOpen ? "rotate-180" : ""
+//                     }`}
+//                     size={18}
+//                     strokeWidth={2.5}
+//                   />
+//                 </div>
+
+//                 {/* Dropdown Menu */}
+//                 {isUserDropdownOpen && (
+//                   <div className="absolute z-50 w-full mt-2 bg-white dark:bg-card border border-slate-200 dark:border-border rounded-xl shadow-lg max-h-80 overflow-hidden">
+//                     {/* Search Bar */}
+//                     <div className="p-3 border-b border-slate-100 dark:border-border">
+//                       <div className="relative">
+//                         <Search
+//                           className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+//                           size={16}
+//                         />
+//                         <input
+//                           type="text"
+//                           value={userSearchTerm}
+//                           onChange={(e) => setUserSearchTerm(e.target.value)}
+//                           placeholder="Search users..."
+//                           className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-border bg-slate-50 dark:bg-[hsl(224,48%,12%)] text-slate-700 dark:text-slate-200 outline-none focus:border-[#93C5FD] dark:focus:border-[hsl(var(--primary))]"
+//                           onClick={(e) => e.stopPropagation()}
+//                         />
+//                       </div>
+//                     </div>
+
+//                     {/* Select All (Multiple Mode Only) */}
+//                     {assignmentMode === "multi" && (
+//                       <div className="p-2 border-b border-slate-100 dark:border-border">
+//                         <label className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-[hsl(224,48%,14%)] rounded-lg transition-colors">
+//                           <input
+//                             type="checkbox"
+//                             checked={allUsersSelected}
+//                             onChange={handleSelectAllUsers}
+//                             className="w-4 h-4 text-[#FF9F1C] dark:text-[hsl(var(--primary))] border-slate-300 rounded focus:ring-[#FF9F1C]"
+//                             onClick={(e) => e.stopPropagation()}
+//                           />
+//                           <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+//                             Select All ({filteredUsers.length})
+//                           </span>
+//                         </label>
+//                       </div>
+//                     )}
+
+//                     {/* Users List */}
+//                     <div className="max-h-60 overflow-y-auto">
+//                       {filteredUsers.length === 0 ? (
+//                         <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+//                           No users found
+//                         </div>
+//                       ) : (
+//                         filteredUsers.map((user) => {
+//                           const isSelected =
+//                             assignmentMode === "multi"
+//                               ? selectedUsers.some((u) => u.id === user.id)
+//                               : singleUser === user.id;
+//                           return (
+//                             <div
+//                               key={user.id}
+//                               onClick={() => handleUserSelect(user)}
+//                               className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+//                                 isSelected
+//                                   ? "bg-[#FDF9F2] dark:bg-[hsl(224,48%,16%)]"
+//                                   : "hover:bg-slate-50 dark:hover:bg-[hsl(224,48%,14%)]"
+//                               }`}
+//                             >
+//                               {assignmentMode === "multi" ? (
+//                                 <input
+//                                   type="checkbox"
+//                                   checked={isSelected}
+//                                   onChange={() => {}}
+//                                   className="w-4 h-4 text-[#FF9F1C] dark:text-[hsl(var(--primary))] border-slate-300 rounded focus:ring-[#FF9F1C]"
+//                                   onClick={(e) => e.stopPropagation()}
+//                                 />
+//                               ) : (
+//                                 <div
+//                                   className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+//                                     isSelected
+//                                       ? "border-[#FF9F1C] dark:border-[hsl(var(--primary))] bg-[#FF9F1C] dark:bg-[hsl(var(--primary))]"
+//                                       : "border-slate-300 dark:border-slate-500"
+//                                   }`}
+//                                 >
+//                                   {isSelected && (
+//                                     <div className="w-2 h-2 rounded-full bg-white" />
+//                                   )}
+//                                 </div>
+//                               )}
+//                               <div className="flex-1">
+//                                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+//                                   {user.name}
+//                                 </p>
+//                                 <p className="text-xs text-slate-500 dark:text-slate-400">
+//                                   {user.email}
+//                                 </p>
+//                               </div>
+//                               <span
+//                                 className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getRoleColor(
+//                                   user.role?.name,
+//                                 )}`}
+//                               >
+//                                 {user.role?.name || "No Role"}
+//                               </span>
+//                             </div>
+//                           );
+//                         })
+//                       )}
+//                     </div>
+//                   </div>
+//                 )}
+//               </div>
+//             </div>
+
+//             {/* Location Selection */}
+//             <div className="text-left space-y-2" ref={locationDropdownRef}>
+//               <label className="text-xs font-black text-[#0f0f0f] dark:text-slate-100 uppercase tracking-widest ml-1">
+//                 {assignmentMode === "multi"
+//                   ? `Select Locations (${selectedLocations.length} selected)`
+//                   : singleUser
+//                     ? `Select Locations (${selectedLocations.length} selected)`
+//                     : "Select Locations (0 selected)"}
+//               </label>
+
+//               {assignmentMode === "single" && !singleUser && (
+//                 <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl">
+//                   <p className="text-sm font-medium text-orange-700 dark:text-orange-300">
+//                     Please select a user first to see available locations.
+//                   </p>
+//                 </div>
+//               )}
+
+//               {isFetchingAssignments && (
+//                 <div className="flex items-center gap-2 text-xs sm:text-sm text-[#FF9F1C] dark:text-[hsl(var(--primary))] mb-2">
+//                   <Loader className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+//                   <span>Loading available locations...</span>
+//                 </div>
+//               )}
+
+//               <div className="relative">
+//                 <div
+//                   onClick={() => {
+//                     if (assignmentMode === "single" && !singleUser) return;
+//                     setIsLocationDropdownOpen(!isLocationDropdownOpen);
+//                   }}
+//                   className={`relative cursor-pointer group ${
+//                     assignmentMode === "single" && !singleUser
+//                       ? "opacity-50 cursor-not-allowed"
+//                       : ""
+//                   }`}
+//                 >
+//                   <input
+//                     type="text"
+//                     readOnly
+//                     value={
+//                       selectedLocations.length > 0
+//                         ? `${selectedLocations.length} location${
+//                             selectedLocations.length > 1 ? "s" : ""
+//                           } selected`
+//                         : "Click to select locations..."
+//                     }
+//                     placeholder="Click to select locations..."
+//                     disabled={assignmentMode === "single" && !singleUser}
+//                     className="w-full px-4 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base rounded-xl border border-slate-200 dark:border-border bg-white dark:bg-card font-medium text-[#0f0f0f] dark:text-slate-100 outline-none focus:border-[#93C5FD] dark:focus:border-[hsl(var(--primary))] focus:ring-2 focus:ring-[#93C5FD]/20 dark:focus:ring-[hsl(var(--primary))]/20 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+//                   />
+//                   <ChevronDown
+//                     className={`absolute right-4 sm:right-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 group-hover:text-[#FF9F1C] dark:group-hover:text-[hsl(var(--primary))] transition-all duration-300 ${
+//                       isLocationDropdownOpen ? "rotate-180" : ""
+//                     }`}
+//                     size={18}
+//                     strokeWidth={2.5}
+//                   />
+//                 </div>
+
+//                 {/* Dropdown Menu */}
+//                 {isLocationDropdownOpen &&
+//                   (assignmentMode === "multi" || singleUser) && (
+//                     <div className="absolute z-50 w-full mt-2 bg-white dark:bg-card border border-slate-200 dark:border-border rounded-xl shadow-lg max-h-80 overflow-hidden">
+//                       {/* Search Bar */}
+//                       <div className="p-3 border-b border-slate-100 dark:border-border">
+//                         <div className="relative">
+//                           <Search
+//                             className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+//                             size={16}
+//                           />
+//                           <input
+//                             type="text"
+//                             value={locationSearchTerm}
+//                             onChange={(e) =>
+//                               setLocationSearchTerm(e.target.value)
+//                             }
+//                             placeholder="Search locations..."
+//                             className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-border bg-slate-50 dark:bg-[hsl(224,48%,12%)] text-slate-700 dark:text-slate-200 outline-none focus:border-[#93C5FD] dark:focus:border-[hsl(var(--primary))]"
+//                             onClick={(e) => e.stopPropagation()}
+//                           />
+//                         </div>
+//                       </div>
+
+//                       {/* Select All (Multiple Mode Only) */}
+//                       {assignmentMode === "multi" && (
+//                         <div className="p-2 border-b border-slate-100 dark:border-border">
+//                           <label className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-[hsl(224,48%,14%)] rounded-lg transition-colors">
+//                             <input
+//                               type="checkbox"
+//                               checked={allLocationsSelected}
+//                               onChange={handleSelectAllLocations}
+//                               className="w-4 h-4 text-[#FF9F1C] dark:text-[hsl(var(--primary))] border-slate-300 rounded focus:ring-[#FF9F1C]"
+//                               onClick={(e) => e.stopPropagation()}
+//                             />
+//                             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+//                               Select All ({filteredLocations.length})
+//                             </span>
+//                           </label>
+//                         </div>
+//                       )}
+
+//                       {/* Locations List */}
+//                       <div className="max-h-60 overflow-y-auto">
+//                         {filteredLocations.length === 0 ? (
+//                           <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+//                             {assignmentMode === "single" && singleUser
+//                               ? "All locations are already assigned to this user"
+//                               : "No locations found"}
+//                           </div>
+//                         ) : (
+//                           filteredLocations.map((location) => {
+//                             const isSelected = selectedLocations.some(
+//                               (loc) => loc.id === location.id,
+//                             );
+//                             return (
+//                               <div
+//                                 key={location.id}
+//                                 onClick={() => handleLocationSelect(location)}
+//                                 className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+//                                   isSelected
+//                                     ? "bg-[#FDF9F2] dark:bg-[hsl(224,48%,16%)]"
+//                                     : "hover:bg-slate-50 dark:hover:bg-[hsl(224,48%,14%)]"
+//                                 }`}
+//                               >
+//                                 {assignmentMode === "multi" ? (
+//                                   <input
+//                                     type="checkbox"
+//                                     checked={isSelected}
+//                                     onChange={() => {}}
+//                                     className="w-4 h-4 text-[#FF9F1C] dark:text-[hsl(var(--primary))] border-slate-300 rounded focus:ring-[#FF9F1C]"
+//                                     onClick={(e) => e.stopPropagation()}
+//                                   />
+//                                 ) : (
+//                                   <div
+//                                     className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+//                                       isSelected
+//                                         ? "border-[#FF9F1C] dark:border-[hsl(var(--primary))] bg-[#FF9F1C] dark:bg-[hsl(var(--primary))]"
+//                                         : "border-slate-300 dark:border-slate-500"
+//                                     }`}
+//                                   >
+//                                     {isSelected && (
+//                                       <div className="w-2 h-2 rounded-full bg-white" />
+//                                     )}
+//                                   </div>
+//                                 )}
+//                                 <span className="text-sm font-medium text-slate-900 dark:text-slate-100 flex-1">
+//                                   {location.name}
+//                                 </span>
+//                               </div>
+//                             );
+//                           })
+//                         )}
+//                       </div>
+//                     </div>
+//                   )}
+//               </div>
+//             </div>
+
+//             {/* Action Button */}
+//             <div className="pt-4 sm:pt-6 border-t border-slate-100 dark:border-border">
+//               <button
+//                 type="submit"
+//                 disabled={isLoading || isValidating || !canAddAssignment}
+//                 className={`w-full py-3 sm:py-4 px-4 sm:px-6 text-sm sm:text-base font-bold text-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 sm:gap-3 disabled:cursor-not-allowed disabled:opacity-50 ${
+//                   assignmentMode === "multi"
+//                     ? "bg-gradient-to-r from-[#FF9F1C] to-[#FFBF69] dark:from-[hsl(var(--primary))] dark:to-[hsl(var(--primary-light))] hover:from-[#E68900] hover:to-[#FF9F1C] shadow-[#FF9F1C]/30 dark:shadow-[hsl(var(--primary))]/30"
+//                     : "bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 shadow-blue-500/30 dark:shadow-blue-600/30"
+//                 }`}
+//               >
+//                 {isValidating ? (
+//                   <>
+//                     <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+//                     <span>Validating...</span>
+//                   </>
+//                 ) : isLoading ? (
+//                   <>
+//                     <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+//                     <span>Creating...</span>
+//                   </>
+//                 ) : (
+//                   <>
+//                     <Check size={20} strokeWidth={3} className="text-white" />
+//                     <span>
+//                       {assignmentMode === "multi"
+//                         ? `Create ${
+//                             selectedUsers.length > 0 &&
+//                             selectedLocations.length > 0
+//                               ? selectedUsers.length * selectedLocations.length
+//                               : 0
+//                           } Assignments`
+//                         : `Assign ${selectedLocations.length} Location${
+//                             selectedLocations.length !== 1 ? "s" : ""
+//                           }`}
+//                     </span>
+//                   </>
+//                 )}
+//               </button>
+//             </div>
+//           </form>
+//         </div>
+//       </div>
+//     </>
+//   );
+// };
+
+// export default AddAssignmentPage;
+
+"use client";
+
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useSelector } from "react-redux";
+import toast, { Toaster } from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import { AssignmentsApi } from "@/features/assignments/assignments.api";
+
+// Providers & Hooks
+import { useCompanyId } from "@/providers/CompanyProvider";
+import { usePermissions } from "@/shared/hooks/usePermission";
+import { useRequirePermission } from "@/shared/hooks/useRequirePermission";
+import { MODULES } from "@/shared/constants/permissions";
+
+// TanStack Query Hooks
+import {
+  useAssignmentsByCleanerId,
+  useCreateAssignment,
+} from "@/features/assignments/assignments.queries";
+
+import {
+  useDropdownLocations,
+  useDropdownUsers,
+  useDropdownZones,
+  useDropdownRoles
+} from "@/features/dropdownList/dropdownlist.query";
+
+import {
+  User,
+  MapPin,
+  Search,
+  ChevronDown,
+  X,
+  Users,
+  AlertCircle,
+  Loader,
+  ArrowLeft,
+  Check,
+  ShieldCheck,
+  ClipboardPlus,
+  Map
+} from "lucide-react";
+
+// --- MOVED OUTSIDE COMPONENT TO PREVENT RE-CREATION ON EVERY RENDER ---
+const ROLE_HIERARCHY = {
+  1: { name: "Superadmin", level: 1 },
+  2: { name: "Admin", level: 2 },
+  6: { name: "Zonal Admin", level: 3 },
+  8: { name: "Facility Admin", level: 3 },
+  3: { name: "Supervisor", level: 4 },
+  7: { name: "Facility Supv", level: 4 },
+  5: { name: "Cleaner", level: 5 },
+};
+
+const buildHierarchicalList = (flatList) => {
+  if (!flatList || !Array.isArray(flatList)) return [];
+
+  const map = {};
+  const roots = [];
+
+  flatList.forEach((item) => {
+    map[item.id] = { ...item, children: [] };
+  });
+
+  flatList.forEach((item) => {
+    if (item.parent_id && map[item.parent_id]) {
+      map[item.parent_id].children.push(map[item.id]);
+    } else {
+      roots.push(map[item.id]);
+    }
+  });
+
+  const flatten = (items, level = 0) => {
+    let result = [];
+    items.forEach((item) => {
+      result.push({ ...item, level });
+      if (item.children.length > 0) {
+        result = result.concat(flatten(item.children, level + 1));
+      }
+    });
+    return result;
+  };
+
+  return flatten(roots);
+};
+
+const AddAssignmentPage = () => {
+  useRequirePermission(MODULES.ASSIGNMENTS);
+
+  const { canAdd } = usePermissions();
+  const canAddAssignment = canAdd(MODULES.ASSIGNMENTS);
+
+  // --- STATE MANAGEMENT ---
+  const [assignmentMode, setAssignmentMode] = useState("multi");
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [selectedLocations, setSelectedLocations] = useState([]);
+  const [singleUser, setSingleUser] = useState("");
+
+  const [selectedZones, setSelectedZones] = useState([]);
+  const [zoneSearchTerm, setZoneSearchTerm] = useState("");
+  const [isZoneDropdownOpen, setIsZoneDropdownOpen] = useState(false);
+  const [selectAllZoneLocations, setSelectAllZoneLocations] = useState(false);
+
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [locationSearchTerm, setLocationSearchTerm] = useState("");
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
+
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+
+  const { user: loggedInUser } = useSelector((state) => state.auth);
+  const { companyId } = useCompanyId();
+
+  const userDropdownRef = useRef(null);
+  const locationDropdownRef = useRef(null);
+  const zoneDropdownRef = useRef(null);
+  const router = useRouter();
+
+  // --- TANSTACK QUERIES ---
+  const { data: usersResponse = [], isLoading: isLoadingUsers } = useDropdownUsers(companyId);
+  const { data: locationsResponse = [], isLoading: isLoadingLocations } = useDropdownLocations(companyId);
+  const { data: zonesResponse = [], isLoading: isLoadingZones } = useDropdownZones(companyId);
+  const { data: rolesResponse = [], isLoading: isLoadingRoles } = useDropdownRoles();
+  const { data: singleUserAssignmentsData = [], isLoading: isFetchingAssignments } = useAssignmentsByCleanerId(singleUser, companyId, false);
+  
+  const createAssignmentMutation = useCreateAssignment();
+
+  // --- STRICT MEMOIZATION (PREVENTS INFINITE RENDERING/LAG) ---
+  const currentUserRole = useMemo(() => {
+    const roleId = parseInt(loggedInUser?.role_id);
+    return ROLE_HIERARCHY[roleId] || { level: 99 };
+  }, [loggedInUser?.role_id]);
+
+  const allUsers = useMemo(() => {
+    const raw = Array.isArray(usersResponse) ? usersResponse : (usersResponse?.data || []);
+    return raw.map(u => ({
+      ...u,
+      role: { name: u.role_name || u.role?.name }
+    }));
+  }, [usersResponse]);
+
+  const allLocations = useMemo(() => {
+    return Array.isArray(locationsResponse) ? locationsResponse : (locationsResponse?.data || []);
+  }, [locationsResponse]);
+
+  const allZones = useMemo(() => {
+    return Array.isArray(zonesResponse) ? zonesResponse : (zonesResponse?.data || []);
+  }, [zonesResponse]);
+
+  const allRoles = useMemo(() => {
+    return Array.isArray(rolesResponse) ? rolesResponse : (rolesResponse?.data || []);
+  }, [rolesResponse]);
+
+  const assignableUsers = useMemo(() => {
+    return allUsers.filter((u) => {
+      const uRoleId = parseInt(u.role_id);
+      const uRoleData = ROLE_HIERARCHY[uRoleId];
+      return uRoleData && uRoleData.level > currentUserRole.level;
+    });
+  }, [allUsers, currentUserRole]);
+
+  const isZonalAdminSelected = useMemo(() => {
+    if (assignmentMode === "multi") return selectedUsers.some((u) => parseInt(u.role_id) === 6);
+    const user = assignableUsers.find((u) => u.id === singleUser);
+    return user ? parseInt(user.role_id) === 6 : false;
+  }, [assignmentMode, selectedUsers, singleUser, assignableUsers]);
+
+  const isSupervisorSelected = useMemo(() => {
+    if (assignmentMode === "multi") return selectedUsers.some((u) => parseInt(u.role_id) === 3);
+    const user = assignableUsers.find((u) => u.id === singleUser);
+    return user ? parseInt(user.role_id) === 3 : false;
+  }, [assignmentMode, selectedUsers, singleUser, assignableUsers]);
+
+  const userAssignedLocations = useMemo(() => {
+    if (assignmentMode !== "single" || !singleUser) return [];
+    return singleUserAssignmentsData.map((a) => a.location_id);
+  }, [singleUserAssignmentsData, assignmentMode, singleUser]);
+
+  const baseLocations = useMemo(() => {
+    let locs = allLocations;
+
+    if (isSupervisorSelected) {
+      if (selectedZones.length === 0) return [];
+      const selectedZoneIds = selectedZones.map((z) => z.id.toString());
+      locs = locs.filter((loc) => selectedZoneIds.includes(loc.type_id?.toString()));
+    }
+
+    if (assignmentMode === "single" && singleUser) {
+      locs = locs.filter((loc) => !userAssignedLocations.includes(loc.id));
+    }
+
+    return locs;
+  }, [allLocations, isSupervisorSelected, selectedZones, assignmentMode, singleUser, userAssignedLocations]);
+
+  const hierarchicalZones = useMemo(() => buildHierarchicalList(allZones), [allZones]);
+
+  // Filters
+  const filteredUsers = useMemo(() => {
+    return assignableUsers.filter((user) => {
+      const matchesSearch = user.name.toLowerCase().includes(userSearchTerm.toLowerCase());
+      const matchesRole = selectedRoleFilter === "all" || user.role?.name?.toLowerCase() === selectedRoleFilter.toLowerCase();
+      return matchesSearch && matchesRole;
+    });
+  }, [assignableUsers, userSearchTerm, selectedRoleFilter]);
+
+  const filteredLocations = useMemo(() => {
+    return baseLocations.filter((loc) => loc.name.toLowerCase().includes(locationSearchTerm.toLowerCase()));
+  }, [baseLocations, locationSearchTerm]);
+
+  const filteredZones = useMemo(() => {
+    return hierarchicalZones.filter((zone) => zone.name.toLowerCase().includes(zoneSearchTerm.toLowerCase()));
+  }, [hierarchicalZones, zoneSearchTerm]);
+
+
+  // --- VISIBILITY FLAGS ---
+  const showZoneDropdown = isZonalAdminSelected || isSupervisorSelected;
+  const showLocationDropdown = !isZonalAdminSelected && !(isSupervisorSelected && selectAllZoneLocations);
+  const isDataLoading = isLoadingUsers || isLoadingLocations || isLoadingRoles || isLoadingZones;
+
+  const allLocationsSelected = selectedLocations.length === baseLocations.length && baseLocations.length > 0;
+  const allUsersSelected = selectedUsers.length === filteredUsers.length && filteredUsers.length > 0;
+
+  // --- UI HELPERS ---
+  const getRoleColor = (roleName) => {
+    if (!roleName) return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+    const role = roleName.toLowerCase();
+    switch (role) {
+      case "supervisor": return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+      case "cleaner": return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300";
+      case "zonal admin":
+      case "zonaladmin": return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300";
+      case "facility supervisor": return "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300";
+      case "facility admin": return "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300";
+      default: return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+    }
+  };
+
+  // --- EVENT LISTENERS ---
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) setIsUserDropdownOpen(false);
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) setIsLocationDropdownOpen(false);
+      if (zoneDropdownRef.current && !zoneDropdownRef.current.contains(event.target)) setIsZoneDropdownOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // --- HANDLERS ---
+  const handleModeToggle = () => {
+    setAssignmentMode((prev) => (prev === "multi" ? "single" : "multi"));
+    // Reset all states immediately on mode change instead of trapping them in a useEffect
+    setSelectedUsers([]);
+    setSingleUser("");
+    setSelectedLocations([]);
+    setUserSearchTerm("");
+    setLocationSearchTerm("");
+    setSelectedRoleFilter("all");
+    setIsUserDropdownOpen(false);
+    setIsLocationDropdownOpen(false);
+    setSelectedZones([]);
+    setZoneSearchTerm("");
+    setIsZoneDropdownOpen(false);
+    setSelectAllZoneLocations(false);
+  };
+
+  const handleUserSelect = (user) => {
+    if (assignmentMode === "multi") {
+      setSelectedUsers((prev) => prev.some((u) => u.id === user.id) ? prev.filter((u) => u.id !== user.id) : [...prev, user]);
+    } else {
+      setSingleUser(user.id);
+      setUserSearchTerm(user.name);
+      setIsUserDropdownOpen(false);
+      setSelectedLocations([]);
+    }
+  };
+
+  const handleLocationSelect = (location) => {
+    setSelectedLocations((prev) => prev.some((loc) => loc.id === location.id) ? prev.filter((loc) => loc.id !== location.id) : [...prev, location]);
+  };
+
+  const handleZoneSelect = (zone) => {
+    setSelectedZones((prev) => prev.some((z) => z.id === zone.id) ? prev.filter((z) => z.id !== zone.id) : [...prev, zone]);
+  };
+
+  const handleRemoveUser = (userId) => setSelectedUsers((prev) => prev.filter((u) => u.id !== userId));
+  const handleRemoveLocation = (locationId) => setSelectedLocations((prev) => prev.filter((loc) => loc.id !== locationId));
+  const handleRemoveZone = (zoneId) => setSelectedZones((prev) => prev.filter((z) => z.id !== zoneId));
+
+  const handleSelectAllLocations = () => {
+    if (allLocationsSelected) setSelectedLocations([]);
+    else setSelectedLocations(baseLocations);
+  };
+
+  const handleSelectAllUsers = () => {
+    if (allUsersSelected) setSelectedUsers([]);
+    else setSelectedUsers(filteredUsers);
+  };
+
+  const validateAssignments = async () => {
+    setIsValidating(true);
+    const conflicts = [];
+    try {
+      const usersToCheck = assignmentMode === "multi" ? selectedUsers : [assignableUsers.find((u) => u.id === singleUser)];
+      for (const user of usersToCheck) {
+        if (!user) continue;
+        const response = await AssignmentsApi.getAssignmentsByCleanerId(user.id, companyId);
+        if (response.success) {
+          const assignedLocationIds = response.data.map((a) => a.location_id);
+          const userConflicts = selectedLocations.filter((loc) => assignedLocationIds.includes(loc.id));
+          if (userConflicts.length > 0) {
+            conflicts.push({
+              userName: user.name,
+              locations: userConflicts.map((loc) => loc.name),
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error validating assignments:", error);
+    } finally {
+      setIsValidating(false);
+    }
+    return conflicts;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!canAddAssignment) return toast.error("You don't have permission to add assignments");
+
+    if (assignmentMode === "multi" && selectedUsers.length === 0) return toast.error("Please select at least one user.");
+    if (assignmentMode === "single" && !singleUser) return toast.error("Please select a user.");
+
+    if (showZoneDropdown && selectedZones.length === 0) return toast.error("Please select at least one zone for the chosen role.");
+    if (showLocationDropdown && selectedLocations.length === 0) return toast.error("Please select at least one location.");
+
+    const conflicts = await validateAssignments();
+
+    if (conflicts.length > 0) {
+      const errorMessages = conflicts.map((conflict) => {
+        const locationList = conflict.locations.join(", ");
+        return `• ${conflict.userName} is already assigned to: ${locationList}`;
+      });
+
+      toast.error(
+        (t) => (
+          <div className="max-w-md">
+            <div className="flex items-start gap-2 mb-2">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-800 mb-1">Assignment Conflicts Found</p>
+                <div className="text-sm text-red-700 space-y-1">
+                  {errorMessages.map((msg, idx) => (<p key={idx}>{msg}</p>))}
+                </div>
+              </div>
+            </div>
+            <button onClick={() => toast.dismiss(t.id)} className="mt-2 w-full px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">Dismiss</button>
+          </div>
+        ),
+        { duration: Infinity, style: { maxWidth: "500px" } }
+      );
+      return;
+    }
+
+    let successCount = 0;
+    let failureCount = 0;
+    const errors = [];
+
+    const generatePayload = (userObj) => {
+      const isZonal = parseInt(userObj.role_id) === 6;
+      const isSupv = parseInt(userObj.role_id) === 3;
+
+      let finalLocationIds = selectedLocations.map(loc => loc.id);
+      let finalTypeIds = selectedZones.map(z => z.id);
+
+      if (isZonal) {
+        finalLocationIds = []; 
+      } else if (isSupv) {
+        finalTypeIds = []; 
+        if (selectAllZoneLocations) {
+          const selectedZoneIds = selectedZones.map(z => z.id.toString());
+          const matchingLocs = allLocations.filter(loc => selectedZoneIds.includes(loc.type_id?.toString()));
+          finalLocationIds = matchingLocs.map(loc => loc.id);
+        }
+      } else {
+        finalTypeIds = [];
+      }
+
+      const payload = {
+        cleaner_user_id: userObj.id,
+        status: "assigned",
+        company_id: companyId,
+        role_id: userObj.role_id,
+      };
+
+      if (finalLocationIds.length > 0) payload.location_ids = finalLocationIds;
+      if (finalTypeIds.length > 0) payload.type_ids = finalTypeIds;
+
+      return payload;
+    };
+
+    try {
+      if (assignmentMode === "multi") {
+        const promises = selectedUsers.map(async (user) => {
+          try {
+            const payload = generatePayload(user);
+            const response = await createAssignmentMutation.mutateAsync(payload);
+            successCount += response?.data?.created || 0;
+            return { success: true, user: user.name };
+          } catch (error) {
+            failureCount++;
+            errors.push(`${user.name}: ${error.message}`);
+            return { success: false, user: user.name, error: error.message };
+          }
+        });
+        await Promise.all(promises);
+      } else {
+        const selectedUserData = assignableUsers.find((u) => u.id === singleUser);
+        try {
+          const payload = generatePayload(selectedUserData);
+          const response = await createAssignmentMutation.mutateAsync(payload);
+          successCount = response?.data?.created || 0;
+        } catch (error) {
+          failureCount++;
+          errors.push(error.message);
+        }
+      }
+
+      if (successCount > 0 && failureCount === 0) {
+        toast.success(`Successfully created ${successCount} assignment${successCount !== 1 ? "s" : ""}!`);
+        
+        // Reset and push
+        setTimeout(() => { router.push(`/userMapping?companyId=${companyId}`); }, 1000);
+      } else if (successCount > 0 && failureCount > 0) {
+        toast(
+          (t) => (
+            <div className="max-w-md">
+              <div className="flex items-start gap-2 mb-2">
+                <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-yellow-800 mb-1">Partial Success</p>
+                  <p className="text-sm text-yellow-700 mb-2">Created {successCount} assignment{successCount !== 1 ? "s" : ""}, but {failureCount} failed:</p>
+                  <div className="text-sm text-yellow-700 space-y-1">
+                    {errors.slice(0, 3).map((error, idx) => (<p key={idx}>• {error}</p>))}
+                    {errors.length > 3 && (<p>• ...and {errors.length - 3} more</p>)}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => toast.dismiss(t.id)} className="mt-2 w-full px-3 py-1.5 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition-colors">Dismiss</button>
+            </div>
+          ),
+          { duration: Infinity, style: { maxWidth: "500px" } }
+        );
+      } else {
+        throw new Error(errors[0] || "Assignment creation failed");
+      }
+    } catch (error) {
+      console.error("Error creating assignments:", error);
+      toast.error(
+        (t) => (
+          <div>
+            <p className="font-semibold mb-1">Failed to create assignments</p>
+            <p className="text-sm">{error.message}</p>
+            <button onClick={() => toast.dismiss(t.id)} className="mt-2 w-full px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors">Dismiss</button>
+          </div>
+        ),
+        { duration: Infinity }
+      );
+    }
+  };
+
+  // --- RENDER ---
+  return (
+    <>
+      <Toaster position="top-center" />
+      <div
+        className="min-h-screen w-full py-4 sm:py-6 px-4 sm:px-6 md:px-8 flex flex-col items-center relative "
+        style={{ background: "var(--assignment-bg)" }}
+      >
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div
+            className="absolute top-0 right-0 w-40 h-40 sm:w-48 sm:h-48 md:w-56 md:h-56 rounded-full blur-3xl opacity-50 translate-x-1/2 -translate-y-1/2"
+            style={{ background: "var(--assignment-accent-bg)" }}
+          />
+        </div>
+
+        <div className="absolute top-4 sm:top-6 md:top-8 left-4 sm:left-6 md:left-8 z-20">
+          <button
+            onClick={() => router.back()}
+            className="cursor-pointer p-2 rounded-full transition-all duration-200"
+            style={{
+              color: "var(--assignment-title)",
+              background: "var(--assignment-surface)",
+              border: "1px solid var(--assignment-border)",
+              boxShadow: "var(--assignment-shadow)"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--assignment-accent-bg)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--assignment-surface)";
+            }}
+          >
+            <ArrowLeft size={20} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <div className="max-w-[1000px] w-full relative z-10">
+          <div
+            className="rounded-2xl"
+            style={{
+              background: "var(--assignment-surface)",
+              border: "1px solid var(--assignment-border)",
+              boxShadow: "var(--assignment-shadow)",
+            }}
+          >
+            <div
+              className="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center"
+              style={{ background: "var(--assignment-header-bg)", borderBottom: "1px solid var(--assignment-header-border)" }}
+            >
+              <div className="flex items-center gap-2 sm:gap-3">
+                <ClipboardPlus size={18} className="flex-shrink-0" style={{ color: "var(--assignment-accent-text)" }} />
+                <h1 className="text-base sm:text-lg md:text-xl font-extrabold tracking-tight" style={{ color: "var(--assignment-title)" }}>
+                  Create Assignments
+                </h1>
+              </div>
+              <div className="h-2 w-2 rounded-full animate-pulse" style={{ background: "var(--assignment-success-dot)" }} />
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8">
+
+              {/* 🔥 HORIZONTAL ROW 1: Settings & Role Filter */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                <div
+                  className="rounded-xl p-4 sm:p-5 flex items-center justify-between h-full"
+                  style={{ background: "var(--assignment-surface)", border: "1px solid var(--assignment-border)" }}
+                >
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div
+                      className="h-10 w-10 sm:h-11 sm:w-11 rounded-lg flex items-center justify-center shadow-sm transition-all"
+                      style={{ background: assignmentMode === "multi" ? "var(--assignment-accent-bg)" : "var(--assignment-input-bg)" }}
+                    >
+                      <ShieldCheck size={20} style={{ color: assignmentMode === "multi" ? "var(--assignment-accent-text)" : "var(--assignment-subtitle)" }} />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-xs sm:text-sm font-black uppercase tracking-tight" style={{ color: "var(--assignment-title)" }}>
+                        {assignmentMode === "multi" ? "Multiple Mode" : "Single Mode"}
+                      </h3>
+                      <p className="text-[10px] sm:text-xs font-bold" style={{ color: "var(--assignment-subtitle)" }}>
+                        {assignmentMode === "multi" ? "Bulk mapping active" : "One-to-one mapping active"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleModeToggle}
+                    className="relative inline-flex h-8 w-14 sm:h-9 sm:w-16 items-center rounded-full transition-all flex-shrink-0"
+                    style={{
+                      background: assignmentMode === "multi" ? "var(--assignment-toggle-active-bg)" : "var(--assignment-toggle-bg)",
+                      boxShadow: "var(--assignment-toggle-shadow)",
+                    }}
+                  >
+                    <span
+                      className="inline-flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 rounded-full transition-all"
+                      style={{
+                        background: "var(--assignment-toggle-knob)",
+                        transform: assignmentMode === "multi" ? "translateX(1.75rem)" : "translateX(0.25rem)",
+                      }}
+                    >
+                      <Users size={14} style={{ opacity: assignmentMode === "multi" ? 1 : 0, color: "var(--assignment-accent-text)" }} />
+                      <User size={14} style={{ opacity: assignmentMode !== "multi" ? 1 : 0, color: "var(--assignment-subtitle)", position: "absolute" }} />
+                    </span>
+                  </button>
+                </div>
+
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRoleFilter("all")}
+                    className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest border transition-all"
+                    style={{
+                      background: selectedRoleFilter === "all" ? "var(--assignment-chip-bg)" : "var(--assignment-surface)",
+                      borderColor: selectedRoleFilter === "all" ? "var(--assignment-chip-border)" : "var(--assignment-border)",
+                      color: selectedRoleFilter === "all" ? "var(--assignment-chip-text)" : "var(--assignment-subtitle)",
+                    }}
+                  >
+                    All Roles
+                  </button>
+
+                  {allRoles.map((role) => (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => setSelectedRoleFilter(role.name)}
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest border transition-all"
+                      style={{
+                        background: selectedRoleFilter === role.name ? "var(--assignment-chip-bg)" : "var(--assignment-surface)",
+                        borderColor: selectedRoleFilter === role.name ? "var(--assignment-chip-border)" : "var(--assignment-border)",
+                        color: selectedRoleFilter === role.name ? "var(--assignment-chip-text)" : "var(--assignment-subtitle)",
+                      }}
+                    >
+                      {role.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {!canAddAssignment && (
+                <div className="p-3 sm:p-4 rounded-xl shadow-sm" style={{ background: "var(--assignment-warning-bg)", border: "2px solid var(--assignment-warning-border)", color: "var(--assignment-warning-text)" }}>
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm font-semibold">You don&apos;t have permission to create assignments. Please contact your administrator.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 🔥 HORIZONTAL ROW 2: User & Zone Selectors */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                <div className="text-left space-y-2 relative" ref={userDropdownRef}>
+                  <label className="text-xs font-black uppercase tracking-widest ml-1" style={{ color: "var(--assignment-title)" }}>
+                    {assignmentMode === "multi" ? `Select Users (${selectedUsers.length} selected)` : "Select User"}
+                  </label>
+                  <div className="relative">
+                    <div onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)} className="relative cursor-pointer group">
+                      <input
+                        type="text"
+                        readOnly
+                        value={assignmentMode === "multi" ? (selectedUsers.length > 0 ? `${selectedUsers.length} user${selectedUsers.length > 1 ? "s" : ""} selected` : "") : (singleUser ? assignableUsers.find((u) => u.id === singleUser)?.name || "" : "")}
+                        placeholder={assignmentMode === "multi" ? "Click to select users..." : "Select a user..."}
+                        className="w-full px-4 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base rounded-xl outline-none cursor-pointer transition-all"
+                        style={{ background: "var(--assignment-input-bg)", border: "1px solid var(--assignment-input-border)", color: "var(--assignment-input-text)" }}
+                      />
+                      <ChevronDown size={18} strokeWidth={2.5} className={`absolute right-4 sm:right-5 top-1/2 -translate-y-1/2 transition-transform duration-300 ${isUserDropdownOpen ? "rotate-180" : ""}`} style={{ color: "var(--assignment-subtitle)" }} />
+                    </div>
+
+                    {isUserDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-3 z-50 rounded-xl overflow-hidden flex flex-col" style={{ background: "var(--assignment-dropdown-bg)", border: "1px solid var(--assignment-dropdown-border)", boxShadow: "0 20px 50px rgba(0,0,0,0.25)" }}>
+                        <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--assignment-divider)" }}>
+                          <div className="relative">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--assignment-subtitle)" }} />
+                            <input type="text" value={userSearchTerm} onChange={(e) => setUserSearchTerm(e.target.value)} placeholder="Search users..." className="w-full pl-10 pr-4 py-2 text-sm rounded-lg outline-none" style={{ background: "var(--assignment-input-bg)", border: "1px solid var(--assignment-input-border)", color: "var(--assignment-input-text)" }} onClick={(e) => e.stopPropagation()} />
+                          </div>
+                        </div>
+
+                        {assignmentMode === "multi" && (
+                          <div className="p-2 flex-shrink-0" style={{ borderBottom: "1px solid var(--assignment-divider)" }}>
+                            <label className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-lg transition-colors">
+                              <input type="checkbox" checked={allUsersSelected} onChange={handleSelectAllUsers} onClick={(e) => e.stopPropagation()} />
+                              <span className="text-sm font-medium" style={{ color: "var(--assignment-input-text)" }}>Select All ({filteredUsers.length})</span>
+                            </label>
+                          </div>
+                        )}
+
+                        <div className="overflow-y-auto " style={{ minHeight: "150px", maxHeight: "320px" }}>
+                          {isDataLoading ? (
+                            <div className="p-4 flex items-center justify-center gap-2 text-sm" style={{ color: "var(--assignment-subtitle)" }}><Loader className="w-4 h-4 animate-spin" /> Loading users...</div>
+                          ) : filteredUsers.length === 0 ? (
+                            <div className="p-4 text-center text-sm" style={{ color: "var(--assignment-subtitle)" }}>No users found</div>
+                          ) : (
+                            filteredUsers.map((user) => {
+                              const isSelected = assignmentMode === "multi" ? selectedUsers.some((u) => u.id === user.id) : singleUser === user.id;
+                              return (
+                                <div key={user.id} onClick={() => handleUserSelect(user)} className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors" style={{ background: isSelected ? "var(--assignment-dropdown-selected)" : "transparent" }}>
+                                  {assignmentMode === "multi" ? (
+                                    <input type="checkbox" checked={isSelected} readOnly />
+                                  ) : (
+                                    <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center" style={{ borderColor: isSelected ? "var(--assignment-accent-border)" : "var(--assignment-border)", background: isSelected ? "var(--assignment-accent-bg)" : "transparent" }}>
+                                      {isSelected && (<div className="w-2 h-2 rounded-full" style={{ background: "var(--assignment-accent-text)" }} />)}
+                                    </div>
+                                  )}
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium" style={{ color: "var(--assignment-input-text)" }}>{user.name}</p>
+                                    <p className="text-xs" style={{ color: "var(--assignment-subtitle)" }}>{user.email}</p>
+                                  </div>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getRoleColor(user.role?.name)}`}>{user.role?.name || "No Role"}</span>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {assignmentMode === "multi" && selectedUsers.length > 0 && (
+                    <div className="mt-3 p-3 rounded-lg max-h-32 overflow-y-auto" style={{ background: "var(--assignment-chip-bg)", border: "1px solid var(--assignment-chip-border)" }}>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedUsers.map((user) => (
+                          <div key={user.id} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg shadow-sm transition-all" style={{ background: "var(--assignment-surface)", border: "1px solid var(--assignment-chip-border)" }}>
+                            <span className="text-xs font-semibold" style={{ color: "var(--assignment-chip-text)" }}>{user.name}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${getRoleColor(user.role?.name)}`}>{user.role?.name}</span>
+                            <button type="button" onClick={() => handleRemoveUser(user.id)} className="p-0.5 rounded-full transition-colors" style={{ color: "var(--assignment-chip-remove-hover)" }}>
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {assignmentMode === "single" && singleUser && (
+                    <div className="mt-3 p-3 rounded-lg" style={{ background: "var(--assignment-chip-bg)", border: "1px solid var(--assignment-chip-border)" }}>
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg shadow-sm" style={{ background: "var(--assignment-surface)", border: "1px solid var(--assignment-chip-border)" }}>
+                        <span className="text-xs font-semibold" style={{ color: "var(--assignment-chip-text)" }}>{assignableUsers.find((u) => u.id === singleUser)?.name}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${getRoleColor(assignableUsers.find((u) => u.id === singleUser)?.role?.name)}`}>{assignableUsers.find((u) => u.id === singleUser)?.role?.name}</span>
+                        <button type="button" onClick={() => { setSingleUser(""); setUserSearchTerm(""); setSelectedZones([]); setSelectAllZoneLocations(false); }} className="p-0.5 rounded-full transition-colors" style={{ color: "var(--assignment-chip-remove-hover)" }}>
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {showZoneDropdown && (
+                  <div className="text-left space-y-2 relative" ref={zoneDropdownRef}>
+                    <label className="text-xs font-black uppercase tracking-widest ml-1 flex items-center gap-2" style={{ color: "var(--assignment-title)" }}>
+                      Select Zones <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div onClick={() => setIsZoneDropdownOpen(!isZoneDropdownOpen)} className="relative cursor-pointer group">
+                        <input
+                          type="text"
+                          readOnly
+                          value={selectedZones.length > 0 ? `${selectedZones.length} zone${selectedZones.length > 1 ? "s" : ""} selected` : ""}
+                          placeholder="Click to select zones..."
+                          className="w-full px-4 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base rounded-xl outline-none cursor-pointer transition-all"
+                          style={{ background: "var(--assignment-input-bg)", border: "1px solid var(--assignment-input-border)", color: "var(--assignment-input-text)" }}
+                        />
+                        <ChevronDown size={18} strokeWidth={2.5} className={`absolute right-4 sm:right-5 top-1/2 -translate-y-1/2 transition-transform duration-300 ${isZoneDropdownOpen ? "rotate-180" : ""}`} style={{ color: "var(--assignment-subtitle)" }} />
+                      </div>
+
+                      {isZoneDropdownOpen && (
+                        <div className="absolute z-50 w-full mt-2 rounded-xl overflow-hidden flex flex-col" style={{ background: "var(--assignment-dropdown-bg)", border: "1px solid var(--assignment-dropdown-border)", boxShadow: "var(--assignment-shadow)", maxHeight: "300px" }}>
+                          <div className="p-2.5 flex-shrink-0" style={{ borderBottom: "1px solid var(--assignment-divider)" }}>
+                            <div className="relative">
+                              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--assignment-subtitle)" }} />
+                              <input type="text" value={zoneSearchTerm} onChange={(e) => setZoneSearchTerm(e.target.value)} placeholder="Search zones..." className="w-full pl-10 pr-4 py-2 text-sm rounded-lg outline-none" style={{ background: "var(--assignment-input-bg)", border: "1px solid var(--assignment-input-border)", color: "var(--assignment-input-text)" }} onClick={(e) => e.stopPropagation()} />
+                            </div>
+                          </div>
+
+                          <div className="overflow-y-auto flex-1 p-1">
+                            {isLoadingZones ? (
+                              <div className="p-4 flex justify-center text-sm" style={{ color: "var(--assignment-subtitle)" }}><Loader className="w-4 h-4 animate-spin mr-2" /> Loading zones...</div>
+                            ) : filteredZones.length === 0 ? (
+                              <div className="p-4 text-center text-sm" style={{ color: "var(--assignment-subtitle)" }}>No zones found</div>
+                            ) : (
+                              filteredZones.map((zone) => {
+                                const isSelected = selectedZones.some((z) => z.id === zone.id);
+                                return (
+                                  <div key={zone.id} onClick={() => handleZoneSelect(zone)} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer rounded-lg transition-colors mx-1 my-0.5" style={{ background: isSelected ? "var(--assignment-dropdown-selected)" : "transparent", paddingLeft: `${(zone.level || 0) * 24 + 12}px` }}>
+                                    {zone.level > 0 && (<div className="w-3 h-px bg-gray-400 mr-1 opacity-50 flex-shrink-0" />)}
+                                    <div className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all" style={{ borderColor: isSelected ? "var(--assignment-accent-border)" : "var(--assignment-border)", background: isSelected ? "var(--assignment-accent-bg)" : "transparent" }}>
+                                      {isSelected && (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" style={{ color: "var(--assignment-accent-text)" }}><polyline points="20 6 9 17 4 12" /></svg>)}
+                                    </div>
+                                    <Map className="w-4 h-4 flex-shrink-0" style={{ color: "var(--assignment-subtitle)" }} />
+                                    <span className="text-sm font-medium" style={{ color: "var(--assignment-input-text)" }}>{zone.name}</span>
+                                    {zone.level === 0 && (<span className="ml-auto text-[9px] font-bold uppercase tracking-widest opacity-50" style={{ color: "var(--assignment-subtitle)" }}>Main</span>)}
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedZones.length > 0 && (
+                      <div className="mt-3 p-3 rounded-lg max-h-40 overflow-y-auto" style={{ background: "var(--assignment-chip-bg)", border: "1px solid var(--assignment-chip-border)" }}>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedZones.map((zone) => (
+                            <div key={zone.id} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg shadow-sm transition-all" style={{ background: "var(--assignment-surface)", border: "1px solid var(--assignment-chip-border)" }}>
+                              <Map className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--assignment-accent-text)" }} />
+                              <span className="text-xs font-semibold" style={{ color: "var(--assignment-chip-text)" }}>{zone.name}</span>
+                              <button type="button" onClick={() => handleRemoveZone(zone.id)} className="p-0.5 rounded-full transition-colors" style={{ color: "var(--assignment-chip-remove-hover)" }}>
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 🔥 HORIZONTAL ROW 3: Supervisor Checkbox & Location Selection */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                {isSupervisorSelected && (
+                  <div
+                    className="w-full flex items-center p-4 rounded-xl border transition-all"
+                    style={{
+                      borderColor: selectAllZoneLocations ? "var(--assignment-accent-border)" : "var(--assignment-border)",
+                      background: selectAllZoneLocations ? "var(--assignment-accent-bg)" : "var(--assignment-surface)",
+                      boxShadow: selectAllZoneLocations ? "var(--assignment-shadow)" : "none"
+                    }}
+                  >
+                    <label className="flex items-center gap-3 cursor-pointer w-full">
+                      <div className="relative flex items-center">
+                        <input
+                          type="checkbox"
+                          className="peer sr-opacity w-5 h-5 opacity-0 absolute"
+                          checked={selectAllZoneLocations}
+                          onChange={(e) => setSelectAllZoneLocations(e.target.checked)}
+                        />
+                        <div className="w-5 h-5 rounded border-2 flex items-center justify-center transition-all" style={{ borderColor: selectAllZoneLocations ? "var(--assignment-accent-text)" : "var(--assignment-subtitle)", background: selectAllZoneLocations ? "var(--assignment-accent-text)" : "transparent" }}>
+                          {selectAllZoneLocations && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3 text-white"><polyline points="20 6 9 17 4 12" /></svg>}
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold" style={{ color: selectAllZoneLocations ? "var(--assignment-accent-text)" : "var(--assignment-title)" }}>Assign all locations in selected zones</span>
+                        <span className="text-xs font-medium" style={{ color: "var(--assignment-subtitle)", opacity: 0.8 }}>Automatically selects all matching washrooms in background.</span>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {showLocationDropdown && (
+                  <div className="text-left space-y-2 relative" ref={locationDropdownRef}>
+                    <label className="text-xs font-black uppercase tracking-widest ml-1" style={{ color: "var(--assignment-title)" }}>
+                      {assignmentMode === "multi" ? `Select Locations (${selectedLocations.length} selected)` : singleUser ? `Select Locations (${selectedLocations.length} selected)` : "Select Locations (0 selected)"}
+                    </label>
+
+                    {assignmentMode === "single" && !singleUser && (
+                      <div className="p-3 rounded-xl" style={{ background: "var(--assignment-warning-bg)", border: "1px solid var(--assignment-warning-border)", color: "var(--assignment-warning-text)" }}>
+                        <p className="text-sm font-medium">Please select a user first to see available locations.</p>
+                      </div>
+                    )}
+
+                    {isFetchingAssignments && (
+                      <div className="flex items-center gap-2 text-xs sm:text-sm mb-2" style={{ color: "var(--assignment-loading-text)" }}>
+                        <Loader className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" /><span>Loading available locations...</span>
+                      </div>
+                    )}
+
+                    <div className="relative">
+                      <div onClick={() => { if (assignmentMode === "single" && !singleUser) return; setIsLocationDropdownOpen(!isLocationDropdownOpen); }} className={`relative cursor-pointer group ${assignmentMode === "single" && !singleUser ? "opacity-50 cursor-not-allowed" : ""}`}>
+                        <input
+                          type="text"
+                          readOnly
+                          disabled={assignmentMode === "single" && !singleUser}
+                          value={selectedLocations.length > 0 ? `${selectedLocations.length} location${selectedLocations.length > 1 ? "s" : ""} selected` : ""}
+                          placeholder="Click to select locations..."
+                          className="w-full px-4 sm:px-6 py-3 sm:py-3.5 text-sm sm:text-base rounded-xl outline-none cursor-pointer transition-all disabled:cursor-not-allowed"
+                          style={{ background: "var(--assignment-input-bg)", border: "1px solid var(--assignment-input-border)", color: "var(--assignment-input-text)" }}
+                        />
+                        <ChevronDown size={18} strokeWidth={2.5} className={`absolute right-4 sm:right-5 top-1/2 -translate-y-1/2 transition-transform duration-300 ${isLocationDropdownOpen ? "rotate-180" : ""}`} style={{ color: "var(--assignment-subtitle)" }} />
+                      </div>
+
+                      {isLocationDropdownOpen && (assignmentMode === "multi" || singleUser) && (
+                        <div className="absolute z-50 w-full mt-2 rounded-xl overflow-hidden flex flex-col" style={{ background: "var(--assignment-dropdown-bg)", border: "1px solid var(--assignment-dropdown-border)", boxShadow: "var(--assignment-shadow)", maxHeight: "500px" }}>
+                          <div className="p-2.5 flex-shrink-0" style={{ borderBottom: "1px solid var(--assignment-divider)" }}>
+                            <div className="relative">
+                              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--assignment-subtitle)" }} />
+                              <input type="text" value={locationSearchTerm} onChange={(e) => setLocationSearchTerm(e.target.value)} placeholder="Search locations..." className="w-full pl-10 pr-4 py-2 text-sm rounded-lg outline-none" style={{ background: "var(--assignment-input-bg)", border: "1px solid var(--assignment-input-border)", color: "var(--assignment-input-text)" }} onClick={(e) => e.stopPropagation()} />
+                            </div>
+                          </div>
+
+                          {assignmentMode === "multi" && (
+                            <div className="p-1.5 flex-shrink-0" style={{ borderBottom: "1px solid var(--assignment-divider)" }}>
+                              <label className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-lg">
+                                <input type="checkbox" checked={allLocationsSelected} onChange={handleSelectAllLocations} onClick={(e) => e.stopPropagation()} />
+                                <span className="text-sm font-medium" style={{ color: "var(--assignment-input-text)" }}>Select All ({filteredLocations.length})</span>
+                              </label>
+                            </div>
+                          )}
+
+                          <div className="overflow-y-auto flex-1" style={{ minHeight: "250px", maxHeight: "420px" }}>
+                            {isDataLoading ? (
+                              <div className="p-4 flex items-center justify-center gap-2 text-sm" style={{ color: "var(--assignment-subtitle)" }}><Loader className="w-4 h-4 animate-spin" /> Loading locations...</div>
+                            ) : filteredLocations.length === 0 ? (
+                              <div className="p-4 text-center text-sm" style={{ color: "var(--assignment-subtitle)" }}>
+                                {assignmentMode === "single" && singleUser ? "All locations are already assigned to this user" : "No locations found"}
+                              </div>
+                            ) : (
+                              filteredLocations.map((location) => {
+                                const isSelected = selectedLocations.some((loc) => loc.id === location.id);
+                                return (
+                                  <div key={location.id} onClick={() => handleLocationSelect(location)} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors" style={{ background: isSelected ? "var(--assignment-dropdown-selected)" : "transparent" }}>
+                                    {assignmentMode === "multi" ? (
+                                      <input type="checkbox" checked={isSelected} readOnly />
+                                    ) : (
+                                      <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: isSelected ? "var(--assignment-accent-border)" : "var(--assignment-border)", background: isSelected ? "var(--assignment-accent-bg)" : "transparent" }}>
+                                        {isSelected && (<div className="w-2 h-2 rounded-full" style={{ background: "var(--assignment-accent-text)" }} />)}
+                                      </div>
+                                    )}
+                                    <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: "var(--assignment-subtitle)" }} />
+                                    <span className="text-sm font-medium flex-1" style={{ color: "var(--assignment-input-text)" }}>{location.name}</span>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedLocations.length > 0 && (
+                      <div className="mt-3 p-3 rounded-lg max-h-40 overflow-y-auto" style={{ background: "var(--assignment-chip-bg)", border: "1px solid var(--assignment-chip-border)" }}>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedLocations.map((location) => (
+                            <div key={location.id} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg shadow-sm transition-all" style={{ background: "var(--assignment-surface)", border: "1px solid var(--assignment-chip-border)" }}>
+                              <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "var(--assignment-accent-text)" }} />
+                              <span className="text-xs font-semibold" style={{ color: "var(--assignment-chip-text)" }}>{location.name}</span>
+                              <button type="button" onClick={() => handleRemoveLocation(location.id)} className="p-0.5 rounded-full transition-colors" style={{ color: "var(--assignment-chip-remove-hover)" }}>
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Button */}
+              <div
+                className="pt-4 sm:pt-6 flex justify-end"
+                style={{ borderTop: "1px solid var(--assignment-divider)" }}
+              >
+                <button
+                  type="submit"
+                  disabled={createAssignmentMutation.isPending || isValidating || !canAddAssignment}
+                  className="py-2.5 sm:py-3 px-8 sm:px-10 w-auto text-sm sm:text-base font-bold rounded-xl transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 sm:gap-3 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    background: "var(--assignment-primary-bg)",
+                    color: "var(--assignment-primary-text)",
+                    boxShadow: "var(--assignment-primary-shadow)"
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--assignment-primary-hover-bg)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "var(--assignment-primary-bg)"; }}
+                >
+                  {isValidating ? (
+                    <>
+                      <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      <span style={{ color: "var(--assignment-primary-text)" }}>Validating...</span>
+                    </>
+                  ) : createAssignmentMutation.isPending ? (
+                    <>
+                      <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      <span style={{ color: "var(--assignment-primary-text)" }}>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={20} strokeWidth={3} />
+                      <span>
+                        {assignmentMode === "multi"
+                          ? `Create ${selectedUsers.length > 0 && (selectedLocations.length > 0 || (isSupervisorSelected && selectAllZoneLocations) || isZonalAdminSelected) ? selectedUsers.length : 0} Assignments`
+                          : `Confirm Assignment`}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default AddAssignmentPage;
