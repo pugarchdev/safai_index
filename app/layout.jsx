@@ -21,7 +21,7 @@ export const metadata = {
   title: "SaafAI Dashboard",
   description: "Admin dashboard",
   icons: {
-    icon: '/flo-mascot.png'
+    icon: '/flo-mascot.webp'
   }
 };
 

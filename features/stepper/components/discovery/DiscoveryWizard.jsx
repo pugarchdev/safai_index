@@ -37,7 +37,7 @@ const QUESTIONS = [
   },
   {
     id: 'operationalScope',
-    title: 'What would you like to manage using Safai?',
+    title: 'What would you like to manage using SaafAI?',
     options: [
       { label: 'Washroom Management', icon: '🚻', bg: 'bg-[#e8f0f9]' },
       { label: 'Housekeeping Operations', icon: '🧹', bg: 'bg-[#e8f0f9]' },
@@ -144,12 +144,14 @@ export default function DiscoveryWizard({
         {/* ── HEADER ── */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#1a4b6c] shadow-sm">
-              <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.5 2c-2.3 0-6 1.3-8.8 3.8C5.5 8.7 3.6 13 3.1 16.5c-.1.7.5 1.3 1.2 1.2 3.5-.5 7.8-2.4 10.7-5.6 2.5-2.8 3.8-6.5 3.8-8.8 0-.8-.5-1.3-1.3-1.3zm-1.8 8.4c-2.2 2.4-5.3 4-8 4.6 1-2.1 2.8-4.6 5.3-6.8 1.9-1.7 4.1-2.8 5.7-3.3-.3 1.9-1.2 3.9-3 5.5z"/>
-              </svg>
-            </div>
-            <span className="font-black text-base text-[#1a4b6c] tracking-tight">Safai</span>
+            <img
+              src="/flo-mascot.webp"
+              alt="SaafAI Mascot"
+              className="w-7 h-7 object-contain"
+            />
+            <span className="font-extrabold text-base text-slate-900 tracking-tight flex items-center">
+              Saaf<span className="bg-gradient-to-r from-[#6C5CE7] to-[#00D2D3] bg-clip-text text-transparent">AI</span>
+            </span>
           </div>
           <h2 className="text-xl font-black mb-1 text-slate-900">Quick Setup — 5 Questions</h2>
           <p className="text-sm text-slate-500 font-medium">Help us personalise the setup for your facility.</p>
@@ -172,7 +174,7 @@ export default function DiscoveryWizard({
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 shadow-inner">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-bold text-slate-600">Safai is configuring your workspace as you answer</span>
+            <span className="text-xs font-bold text-slate-600">SaafAI is configuring your workspace as you answer</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <LiveChip icon="🗺️" label="Facility Map" value={answers.operationalStructure} />

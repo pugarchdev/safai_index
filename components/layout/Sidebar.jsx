@@ -313,6 +313,11 @@ const Sidebar = () => {
         >
           {sidebarOpen ? (
             <>
+              <img
+                src="/flo-mascot.webp"
+                alt="SaafAI Mascot"
+                className="w-7 h-7 object-contain flex-shrink-0"
+              />
               <div className="flex-1 min-w-0">
                 <p
                   className="text-[10px] font-black uppercase tracking-widest"
@@ -321,15 +326,21 @@ const Sidebar = () => {
                   Admin Console
                 </p>
                 <p
-                  className="text-sm font-bold truncate"
+                  className="text-sm font-bold truncate tracking-tight"
                   style={{ color: "var(--sidebar-text)" }}
                 >
-                  Safai
+                  Saaf<span className="bg-gradient-to-r from-[#6C5CE7] to-[#00D2D3] bg-clip-text text-transparent">AI</span>
                 </p>
               </div>
             </>
           ) : (
-            <div className="flex-shrink-0 mx-auto" />
+            <div className="flex-shrink-0 mx-auto">
+              <img
+                src="/flo-mascot.webp"
+                alt="SaafAI Mascot"
+                className="w-7 h-7 object-contain"
+              />
+            </div>
           )}
 
           {!isMobile && (

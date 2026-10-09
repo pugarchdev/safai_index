@@ -232,12 +232,14 @@ export default function CompanySetupPage() {
       </div>
 
       <header className="p-6 md:p-10 flex justify-between items-center w-full max-w-5xl mx-auto">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1F4E79] to-blue-700 shadow-md flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-white" />
-          </div>
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/flo-mascot.webp"
+            alt="SaafAI Mascot"
+            className="w-9 h-9 object-contain"
+          />
           <span className="font-extrabold text-xl tracking-tight text-slate-900 dark:text-white">
-            Safai
+            Saaf<span className="bg-gradient-to-r from-[#6C5CE7] to-[#00D2D3] bg-clip-text text-transparent">AI</span>
           </span>
         </div>
 

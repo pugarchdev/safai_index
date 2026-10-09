@@ -95,11 +95,23 @@ export default function LoginPage() {
   return (
     <div className="auth-view active" style={{ display: 'flex' }}>
       <div className="brand-header">
-        <div className="brand-title">Saaf<span>AI</span></div>
+        <div className="brand-title">
+          Saaf
+          <span
+            style={{
+              background: "linear-gradient(135deg, #6c5ce7 0%, #00d2d3 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              display: "inline-block",
+            }}
+          >
+            AI
+          </span>
+        </div>
         <div className="brand-divider">
-          <div className="line"></div>
+          <div className="line" style={{ background: "linear-gradient(90deg, transparent, #6c5ce7, transparent)" }}></div>
           <div className="text">PORTAL-1</div>
-          <div className="line"></div>
+          <div className="line" style={{ background: "linear-gradient(90deg, transparent, #6c5ce7, transparent)" }}></div>
         </div>
         <div className="brand-tagline">Smart Waste Management Platform</div>
       </div>

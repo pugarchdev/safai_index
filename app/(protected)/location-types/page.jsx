@@ -350,7 +350,7 @@ export default function LocationTypesPage() {
 
           {/* Footer */}
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>SAFAI PORTAL</span>
+            <span>SAAFAI PORTAL</span>
             <span className="text-primary font-medium">
               {filteredTypes.length} TOTAL ZONES REGISTERED
             </span>
